@@ -1,0 +1,18 @@
+plugins {
+    id 'com.kageiit.jacobo' version '2.0.1'
+}
+
+description = 'translate jacoco to cobertura'
+
+dependencies {
+}
+
+task jacobo(type: com.kageiit.jacobo.JacoboTask) {
+    jacocoReport = file("./target/site/jacoco-ut/jacoco.xml")
+    coberturaReport = file("./target/site/cobertura/coverage.xml")
+    srcDirs = ["./src/main/java"]
+}
+
+task noop {
+    // noop task for when tests don't run
+}

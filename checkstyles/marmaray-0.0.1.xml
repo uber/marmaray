@@ -1,0 +1,136 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Puppy Crawl//DTD Check Configuration 1.2//EN"
+    "http://www.puppycrawl.com/dtds/configuration_1_2.dtd">
+
+<!--
+    Checkstyle-Configuration: Uber
+    Description: Checkstyle configuration for Uber.
+-->
+<module name="Checker">
+    <property name="charset" value="UTF-8"/>
+
+    <module name="SuppressionFilter">
+      <property name="file" value="${checkstyle.suppression.file}" />
+    </module>
+
+    <module name="SuppressionCommentFilter"/>
+
+    <!-- Trailing spaces -->
+    <module name="RegexpSingleline">
+        <property name="format" value="\s+$"/>
+        <property name="message" value="Line has trailing spaces."/>
+    </module>
+
+    <!-- Double blank lines -->
+    <module name="RegexpMultiline">
+        <property name="format" value="\n\n\n"/>
+        <property name="message" value="Double blank lines."/>
+    </module>
+
+    <!-- New line EOF -->
+    <module name="NewlineAtEndOfFile"/>
+    <module name="FileLength"/>
+    <module name="FileTabCharacter">
+        <property name="eachLine" value="true"/>
+    </module>
+
+    <module name="TreeWalker">
+
+        <module name="FileContentsHolder"/>
+
+        <!-- Line length -->
+        <module name="LineLength">
+            <property name="max" value="120"/>
+            <property name="ignorePattern" value="^(package .*;\s*)|(import .*;\s*)|( *\*.*)$"/>
+        </module>
+
+        <!-- Indentation -->
+        <module name="Indentation"/>
+        <module name="OperatorWrap"/>
+
+        <!-- Curly braces -->
+        <module name="NeedBraces"/>
+        <module name="LeftCurly">
+            <property name="maxLineLength" value="120"/>
+        </module>
+        <module name="RightCurly"/>
+
+        <!-- Order -->
+        <module name="InnerTypeLast"/>
+        <module name="DeclarationOrder"/>
+        <module name="ModifierOrder"/>
+        <module name="RedundantModifier"/>
+
+        <!-- Empty block -->
+        <module name="EmptyBlock">
+            <property name="tokens" value="LITERAL_WHILE,LITERAL_TRY,LITERAL_FINALLY,LITERAL_DO,LITERAL_IF,LITERAL_ELSE,LITERAL_FOR,INSTANCE_INIT,STATIC_INIT,LITERAL_SWITCH"/>
+        </module>
+
+        <!-- Fall through -->
+        <module name="FallThrough"/>
+        <module name="DefaultComesLast"/>
+
+        <!-- Correct annotation -->
+        <module name="MissingOverride"/>
+        <module name="MissingDeprecated"/>
+
+        <!-- Import -->
+        <module name="AvoidStarImport"/>
+        <module name="IllegalImport"/>
+        <module name="RedundantImport"/>
+        <module name="UnusedImports">
+            <property name="processJavadoc" value="true"/>
+        </module>
+
+        <!-- White space -->
+        <module name="GenericWhitespace"/>
+        <module name="WhitespaceAfter"/>
+        <module name="WhitespaceAround"/>
+        <module name="NoWhitespaceAfter">
+            <property name="tokens" value="BNOT, DEC, DOT, INC, LNOT, UNARY_MINUS, UNARY_PLUS"/>
+        </module>
+        <module name="NoWhitespaceBefore"/>
+        <module name="EmptyForInitializerPad"/>
+        <module name="EmptyForIteratorPad"/>
+        <module name="MethodParamPad"/>
+        <module name="TypecastParenPad"/>
+        <module name="ParenPad"/>
+
+        <!-- Class design -->
+        <module name="PackageAnnotation"/>
+        <module name="OuterTypeFilename"/>
+        <module name="PackageDeclaration"/>
+        <module name="FinalClass"/>
+        <module name="InterfaceIsType"/>
+
+        <!-- Equality -->
+        <module name="CovariantEquals"/>
+        <module name="EqualsHashCode"/>
+        <module name="StringLiteralEquality"/>
+
+        <!-- Style -->
+        <module name="TrailingComment"/>
+        <module name="UpperEll"/>
+        <module name="ArrayTypeStyle"/>
+        <module name="MultipleVariableDeclarations"/>
+        <module name="OneStatementPerLine"/>
+        <module name="SimplifyBooleanExpression"/>
+        <module name="SimplifyBooleanReturn"/>
+
+        <!-- Clone -->
+        <module name="NoClone"/>
+        <module name="NoFinalizer"/>
+        <module name="SuperClone"/>
+
+        <!-- Block and Statement -->
+        <module name="NestedTryDepth"/>
+        <module name="AvoidNestedBlocks"/>
+        <module name="EmptyStatement"/>
+        <module name="IllegalInstantiation"/>
+        <module name="InnerAssignment"/>
+
+        <!-- Final parameters -->
+        <module name="FinalParameters"/>
+    </module>
+</module>

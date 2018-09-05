@@ -1,0 +1,45 @@
+---
+marmaray:
+  hadoop:
+    anything: "???"
+  hive:
+    dataPath: ""
+    jobName: ""
+    source:
+      saveCheckpoint: false
+  hoodie:
+    tables:
+      cell_table:
+        table_name: ""
+        base_path: ""
+        schema: ""
+        parallelism: 1024
+      row_table:
+        table_name: ""
+        base_bath: ""
+        schema: ""
+    default:
+      combine_before_insert: true
+      combine_before_upsert: true
+      parallelism: 512
+  kafka:
+    conn: 
+      bootstrap:
+        servers: "???"
+    source:
+      topicName:
+      maxMessage:
+      readParallelism:
+  cassandra:
+    output:
+      native.port: ""
+      thrift.address: ""
+    keyspace: "keyspace"
+    tablename: "tableName"
+    cluster_name: "clusterName"
+    column_list: "columnList"
+    partition_keys: "partitionKeys"
+    clustering_keys: "clusteringKeys"
+    inputPath: "inputPath"
+    partitionType: "partitionType"
+    time_to_live: 0L

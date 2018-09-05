@@ -1,0 +1,34 @@
+database:
+  connection:
+    type: "jdbc"
+    port: 5000
+
+hbase:
+  connection:
+    host: ["hadoopzkfoo1", "hadoopzkfoo2"]
+    port: 4000
+
+spark_properties:
+  spark.executor.memory: "8g"
+  spark.driver.memory: "8g"
+  spark.network.timeout: "120s"
+
+marmaray:
+  hoodie:
+    tables:
+      non_primitive_field_from_default:
+        hello: 1
+        hi: 2
+      non_primitive_field_from_bootstrap:
+        heya: 3
+        bye: 4
+      target_table:
+        parallelism: 1000
+        combine_before_insert: false
+        parquet_max_file_size: 2147483647
+
+# parallelism is overridden
+# parquet_max_file_size, foo, bar are a primitive fields inherited
+# non_primitive_field_from_default is a non-primitive field inherited
+# combine_before_insert, combine_before_upsert are primitive fields retained in override scope
+# non_primitive_field_from_default is a non-primitive field retained in override scope

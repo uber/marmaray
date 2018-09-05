@@ -1,0 +1,16 @@
+---
+  marmaray:
+    scalar_configs:
+      integer: 1
+      long: 1234567890123
+      double: 1.23
+      boolean: true
+    string_configs:
+      string1: "string1"
+      stringlist:
+        "   string2   ": "   string2   "
+    retry_strategy:
+      default_strategy: "SimpleRetryStrategy"
+      simple:
+        num_of_retries: 3
+        wait_time_in_ms: 1000
