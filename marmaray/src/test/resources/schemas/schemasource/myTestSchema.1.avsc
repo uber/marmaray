@@ -1,0 +1,14 @@
+{
+     "type": "record",
+     "name": "myTestSchema",
+     "schemaVersion": 1,
+     "fields": [
+           { "name": "firstName", "type": ["null", "string"], "default": null },
+           { "name": "lastName", "type": ["null", "string"], "default": null },
+           { "name": "address", "type": ["null", {"type": "record", "name": "address_items", "fields": [
+                   { "name": "line1", "type": ["null", "string"], "default": null },
+                   { "name": "city", "type": ["null", "string"], "default": null },
+                   { "name": "zip", "type": ["null", "long"], "default": null}
+               ] } ], "default": null}
+     ]
+}
