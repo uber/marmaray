@@ -1,0 +1,8 @@
+{
+     "type": "record",
+     "name": "wrongSchema",
+     "schemaVersion": 1,
+     "fields": [
+           { "name": "foo", "type": ["null", "string"], "default": null }
+     ]
+}
