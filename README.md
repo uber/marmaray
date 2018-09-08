@@ -1,6 +1,6 @@
 # Marmaray
 
-Marmaray is a generic Hadoop date ingestion and dispersal framework and library.  It is a plug-in based framework built on top of the Hadoop ecosystem where support can be added to ingest data from any source and disperse to any sink leveraging the user of Apache Spark.
+Marmaray is a generic Hadoop data ingestion and dispersal framework and library.  It is a plug-in based framework built on top of the Hadoop ecosystem where support can be added to ingest data from any source and disperse to any sink leveraging the power of Apache Spark.
 
 Marmaray describes a number of abstractions to support the ingestion of any source to any sink.  They are described at a high-level below to help developers understand the architecture and design of the overall system.
 
