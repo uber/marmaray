@@ -1,0 +1,4 @@
+{"firstName": "Foo", "lastName": "Bar", "address": {"line1": "12345 Main St", "city": "Anytown", "zip": 123456}, "timestamp": 1536518565}
+{"firstName": "OnlyFirstname", "timestamp": 1536518566}
+{"firstName": "badData", "address": {"zip": "NotANumber"}, "timestamp": 1536518567}
+{"firstName": "missingTimestamp"}

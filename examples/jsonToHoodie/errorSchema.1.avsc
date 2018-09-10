@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "errorSchema",
+  "schemaVersion": 1,
+  "fields": [
+    {"name": "hadoop_row_key", "type": ["null", "string"], "default": null},
+    {"name": "hadoop_error_source_data", "type": ["null", "string"], "default": null},
+    {"name": "hadoop_error_exception", "type": ["null", "string"], "default": null},
+    {"name": "hadoop_changelog_columns", "type": ["null", "string"], "default": null},
+    {"name": "hadoop_application_id", "type": ["null", "string"], "default": null}
+  ]
+}
