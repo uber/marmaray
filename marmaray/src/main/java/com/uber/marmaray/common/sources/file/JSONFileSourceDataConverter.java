@@ -55,7 +55,7 @@ public class JSONFileSourceDataConverter extends FileSourceDataConverter {
             return Collections.singletonList(
                 new ConverterResult<String, AvroPayload>(new AvroPayload(gr)));
         } catch (MercifulJsonConverter.JsonConversionException e) {
-            return Collections.singletonList(new ConverterResult<String, AvroPayload>(data, e.getMessage()));
+            return Collections.singletonList(new ConverterResult<String, AvroPayload>(data, e.toString()));
         }
     }
 }
