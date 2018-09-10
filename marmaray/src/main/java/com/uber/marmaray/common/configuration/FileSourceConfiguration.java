@@ -32,6 +32,7 @@ public class FileSourceConfiguration implements Serializable {
     public static final String FILE_SOURCE_PREFIX = Configuration.MARMARAY_PREFIX + "source.file.";
     public static final String DIRECTORY = FILE_SOURCE_PREFIX + "directory";
     public static final String TYPE = FILE_SOURCE_PREFIX + "type";
+    public static final String SCHEMA = FILE_SOURCE_PREFIX + "schema";
 
     private final Configuration conf;
 
@@ -48,8 +49,12 @@ public class FileSourceConfiguration implements Serializable {
         return this.conf.getProperty(TYPE).get().toLowerCase();
     }
 
+    public String getSchema() {
+        return this.conf.getProperty(SCHEMA).get();
+    }
+
     public List<String> getMandatoryProperties() {
-        return Arrays.asList(DIRECTORY, TYPE);
+        return Arrays.asList(DIRECTORY, TYPE, SCHEMA);
     }
 
     public FileSystem getFileSystem() throws IOException {

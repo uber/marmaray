@@ -1,0 +1,24 @@
+marmaray:
+  source:
+    file:
+      directory: BASE_PATH/data
+      type: json
+      schema: exampleSchema
+  hdfs_schema_service:
+    path: BASE_PATH/schema
+  hoodie:
+    tables:
+      only_table:
+        table_name: exampleTable
+        base_path: BASE_PATH/table
+        metrics_prefix: ""
+  lock_manager:
+    zk_base_path: "irrelevant"
+    is_enabled: false
+  zookeeper:
+    quorum: "irrelevant"
+    port: "irrelevant"
+  error_table:
+    enabled: true
+    dest_path: BASE_PATH/errorTable
+    is_date_partitioned: true

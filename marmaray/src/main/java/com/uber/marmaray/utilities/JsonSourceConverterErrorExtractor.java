@@ -15,32 +15,18 @@
  * IN THE SOFTWARE.
  */
 
-package com.uber.marmaray.common.configuration;
+package com.uber.marmaray.utilities;
 
-import com.uber.marmaray.utilities.ConfigUtil;
+import com.uber.marmaray.common.data.ErrorData;
 import lombok.NonNull;
-import org.apache.hadoop.fs.Path;
 
-import java.io.Serializable;
-import java.util.Collections;
-import java.util.List;
-
-public class HDFSSchemaServiceConfiguration implements Serializable {
-
-    public static final String HDFS_SCHEMA_SERVICE_PREFIX = Configuration.MARMARAY_PREFIX + "hdfs_schema_service.";
-    public static final String PATH = HDFS_SCHEMA_SERVICE_PREFIX + "path";
-
-    private final Configuration conf;
-
-    public HDFSSchemaServiceConfiguration(@NonNull final Configuration conf) {
-        ConfigUtil.checkMandatoryProperties(conf, getMandatoryProperties());
-        this.conf = conf;
-    }
-
-    public Path getPath() {
-        return new Path(this.conf.getProperty(PATH).get());
-    }
-    public static List<String> getMandatoryProperties() {
-        return Collections.singletonList(PATH);
+/**
+ * Implementation of {@link ErrorExtractor} that can get error data from JSON records
+ * that fail to parse.
+ */
+public class JsonSourceConverterErrorExtractor extends ErrorExtractor {
+    @Override
+    public String getErrorSourceData(@NonNull final ErrorData errorData) {
+        return errorData.getRawData().toString();
     }
 }
