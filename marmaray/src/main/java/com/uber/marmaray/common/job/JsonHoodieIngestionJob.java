@@ -55,7 +55,6 @@ import static com.uber.marmaray.utilities.ErrorTableUtil.ERROR_TABLE_KEY;
 import static com.uber.marmaray.utilities.ErrorTableUtil.TABLE_KEY;
 import static com.uber.marmaray.utilities.SparkUtil.SPARK_PROPERTIES_KEY_PREFIX;
 
-
 /**
  * End to end job to load data from JSON files on HDFS to a hoodie table. Example of combining
  * {@link com.uber.marmaray.common.sources.ISource}, {@link com.uber.marmaray.common.sinks.ISink},
