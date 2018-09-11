@@ -38,6 +38,7 @@ public class TestFileWorkUnitCalculator {
     public void computeWorkUnitsNoJson() throws Exception{
         final Configuration conf = new Configuration();
         conf.setProperty(FileSourceConfiguration.TYPE, "json");
+        conf.setProperty(FileSourceConfiguration.SCHEMA, "{}");
         final Path testDir = Files.createTempDirectory(null);
         try {
             conf.setProperty(FileSourceConfiguration.DIRECTORY, testDir.toString());
@@ -54,6 +55,7 @@ public class TestFileWorkUnitCalculator {
     public void computeWorkUnitsNoSuchDirectory() {
         final Configuration conf = new Configuration();
         conf.setProperty(FileSourceConfiguration.TYPE, "json");
+        conf.setProperty(FileSourceConfiguration.SCHEMA, "{}");
         conf.setProperty(FileSourceConfiguration.DIRECTORY, "path/not/exist");
         final FileWorkUnitCalculator workUnitCalculator = new FileWorkUnitCalculator(new FileSourceConfiguration(conf));
         final FileWorkUnitCalculator.FileWorkUnitCalculatorResult result = workUnitCalculator.computeWorkUnits();
@@ -68,6 +70,7 @@ public class TestFileWorkUnitCalculator {
             createFile(testDir, "file3.csv");
             final Configuration conf = new Configuration();
             conf.setProperty(FileSourceConfiguration.TYPE, "json");
+            conf.setProperty(FileSourceConfiguration.SCHEMA, "{}");
             conf.setProperty(FileSourceConfiguration.DIRECTORY, testDir.toString());
             final FileWorkUnitCalculator workUnitCalculator = new FileWorkUnitCalculator(new FileSourceConfiguration(conf));
             final FileWorkUnitCalculator.FileWorkUnitCalculatorResult result = workUnitCalculator.computeWorkUnits();
