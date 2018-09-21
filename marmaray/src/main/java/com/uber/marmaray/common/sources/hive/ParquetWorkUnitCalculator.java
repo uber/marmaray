@@ -110,6 +110,12 @@ public class ParquetWorkUnitCalculator implements
          * Until we add Cassandra metadata information, we assume explicitly this is a HDFSPartitionManager.
          * Todo: T898695 - Implement metadata manager using Cassandra backend
          */
+
+        if (!this.nextPartition.isPresent()) {
+            log.warn("No partition was found to process.  Reusing latest checkpoint if exists as checkpoint key");
+            return;
+        }
+
         if (partitionManager.isSinglePartition()) {
             log.info("Single partition manager, save next partition {} in metadata manager", this.partitionManager);
             metadataManager.set(MetadataConstants.CHECKPOINT_KEY, new StringValue(this.nextPartition.get()));
