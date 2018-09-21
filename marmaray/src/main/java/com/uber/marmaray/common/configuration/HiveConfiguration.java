@@ -17,6 +17,7 @@
 package com.uber.marmaray.common.configuration;
 
 import com.google.common.base.Optional;
+import com.uber.marmaray.common.PartitionType;
 import com.uber.marmaray.utilities.ConfigUtil;
 import lombok.Getter;
 import lombok.NonNull;
@@ -36,6 +37,7 @@ public class HiveConfiguration implements Serializable {
     public static final String JOB_NAME = HIVE_PROPERTY_PREFIX + "job_name";
     public static final String BASE_METADATA_PATH = HIVE_PROPERTY_PREFIX + "job_metadata";
     public static final String PARTITION_KEY_NAME = HIVE_PROPERTY_PREFIX + "partition_key_name";
+    public static final String PARTITION_TYPE = HIVE_PROPERTY_PREFIX + "partition_type";
 
     @Getter
     private final Configuration conf;
@@ -55,6 +57,9 @@ public class HiveConfiguration implements Serializable {
     @Getter
     private final Optional<String> partitionKeyName;
 
+    @Getter
+    private final PartitionType partitionType;
+
     public HiveConfiguration(@NonNull final Configuration conf) {
         this.conf = conf;
         ConfigUtil.checkMandatoryProperties(this.conf, getMandatoryProperties());
@@ -63,6 +68,13 @@ public class HiveConfiguration implements Serializable {
         this.jobName = this.getConf().getProperty(JOB_NAME).get();
         this.baseMetadataPath = this.getConf().getProperty(BASE_METADATA_PATH).get();
         this.partitionKeyName = this.getConf().getProperty(PARTITION_KEY_NAME);
+
+        if (this.conf.getProperty(PARTITION_TYPE).isPresent()) {
+            this.partitionType = PartitionType.valueOf(this.getConf().getProperty(PARTITION_TYPE)
+                    .get().trim().toUpperCase());
+        } else {
+            this.partitionType = PartitionType.NONE;
+        }
     }
 
     public static List<String> getMandatoryProperties() {

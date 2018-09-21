@@ -65,7 +65,12 @@ public class TestHDFSDatePartitionManager {
                 Optional.absent(),
                 this.fs);
 
-        final Optional<String> partition = pm.getNextPartition();
+        final HDFSMetadataManager metadataManager = new HDFSMetadataManager(this.fs,
+                new Path(HDFSTestConstants.BASE_METADATA_PATH, JOBNAME).toString(),
+                new AtomicBoolean(true));
+
+        final Optional<StringValue> latestCheckpoint = metadataManager.get(MetadataConstants.CHECKPOINT_KEY);
+        final Optional<String> partition = pm.getNextPartition(latestCheckpoint);
         Assert.assertTrue(partition.isPresent());
         Assert.assertEquals("datestr=2017-05-01", partition.get());
     }
@@ -85,7 +90,12 @@ public class TestHDFSDatePartitionManager {
                 Optional.of(startDate),
                 this.fs);
 
-        final Optional<String> partition = pm.getNextPartition();
+        final HDFSMetadataManager metadataManager = new HDFSMetadataManager(this.fs,
+                new Path(HDFSTestConstants.BASE_METADATA_PATH, JOBNAME).toString(),
+                new AtomicBoolean(true));
+
+        final Optional<StringValue> latestCheckpoint = metadataManager.get(MetadataConstants.CHECKPOINT_KEY);
+        final Optional<String> partition = pm.getNextPartition(latestCheckpoint);
         Assert.assertTrue(partition.isPresent());
         Assert.assertEquals("datestr=2017-06-01", partition.get());
     }
@@ -103,7 +113,12 @@ public class TestHDFSDatePartitionManager {
                 Optional.absent(),
                 this.fs);
 
-        final Optional<String> partition = pm.getNextPartition();
+        final HDFSMetadataManager metadataManager = new HDFSMetadataManager(this.fs,
+                new Path(HDFSTestConstants.BASE_METADATA_PATH, JOBNAME).toString(),
+                new AtomicBoolean(true));
+
+        final Optional<StringValue> latestCheckpoint = metadataManager.get(MetadataConstants.CHECKPOINT_KEY);
+        final Optional<String> partition = pm.getNextPartition(latestCheckpoint);
         Assert.assertTrue(partition.isPresent());
         Assert.assertEquals("datestr=2017-05-01", partition.get());
     }
@@ -128,10 +143,15 @@ public class TestHDFSDatePartitionManager {
                 Optional.absent(),
                 this.fs);
 
-        pm.set(MetadataConstants.CHECKPOINT_KEY, val1);
-        pm.saveChanges();
+        final HDFSMetadataManager metadataManager = new HDFSMetadataManager(this.fs,
+                new Path(HDFSTestConstants.BASE_METADATA_PATH, JOBNAME).toString(),
+                new AtomicBoolean(true));
 
-        final Optional<String> partition = pm.getNextPartition();
+        metadataManager.set(MetadataConstants.CHECKPOINT_KEY, val1);
+        metadataManager.saveChanges();
+
+        final Optional<StringValue> latestCheckpoint = metadataManager.get(MetadataConstants.CHECKPOINT_KEY);
+        final Optional<String> partition = pm.getNextPartition(latestCheckpoint);
         Assert.assertTrue(partition.isPresent());
         Assert.assertEquals("datestr=2017-05-03", partition.get());
     }
@@ -155,10 +175,15 @@ public class TestHDFSDatePartitionManager {
                 Optional.of(startDate),
                 this.fs);
 
-        pm.set(MetadataConstants.CHECKPOINT_KEY, val1);
-        pm.saveChanges();
+        final HDFSMetadataManager metadataManager = new HDFSMetadataManager(this.fs,
+                new Path(HDFSTestConstants.BASE_METADATA_PATH, JOBNAME).toString(),
+                new AtomicBoolean(true));
 
-        final Optional<String> partition = pm.getNextPartition();
+        metadataManager.set(MetadataConstants.CHECKPOINT_KEY, val1);
+        metadataManager.saveChanges();
+
+        final Optional<StringValue> latestCheckpoint = metadataManager.get(MetadataConstants.CHECKPOINT_KEY);
+        final Optional<String> partition = pm.getNextPartition(latestCheckpoint);
         Assert.assertTrue(partition.isPresent());
         Assert.assertEquals("datestr=2017-07-01", partition.get());
     }
@@ -182,10 +207,16 @@ public class TestHDFSDatePartitionManager {
                 Optional.of(startDate),
                 this.fs);
 
-        pm.set(MetadataConstants.CHECKPOINT_KEY, val1);
-        pm.saveChanges();
+        final HDFSMetadataManager metadataManager = new HDFSMetadataManager(this.fs,
+                new Path(HDFSTestConstants.BASE_METADATA_PATH, JOBNAME).toString(),
+                new AtomicBoolean(true));
 
-        final Optional<String> partition = pm.getNextPartition();
+
+        metadataManager.set(MetadataConstants.CHECKPOINT_KEY, val1);
+        metadataManager.saveChanges();
+
+        final Optional<StringValue> latestCheckpoint = metadataManager.get(MetadataConstants.CHECKPOINT_KEY);
+        final Optional<String> partition = pm.getNextPartition(latestCheckpoint);
         Assert.assertTrue(partition.isPresent());
         Assert.assertEquals("datestr=2017-07-01", partition.get());
     }
@@ -205,10 +236,15 @@ public class TestHDFSDatePartitionManager {
                 Optional.absent(),
                 this.fs);
 
-        pm.set(MetadataConstants.CHECKPOINT_KEY, val1);
-        pm.saveChanges();
+        final HDFSMetadataManager metadataManager = new HDFSMetadataManager(this.fs,
+                new Path(HDFSTestConstants.BASE_METADATA_PATH, JOBNAME).toString(),
+                new AtomicBoolean(true));
 
-        final Optional<String> partition = pm.getNextPartition();
+        metadataManager.set(MetadataConstants.CHECKPOINT_KEY, val1);
+        metadataManager.saveChanges();
+
+        final Optional<StringValue> latestCheckpoint = metadataManager.get(MetadataConstants.CHECKPOINT_KEY);
+        final Optional<String> partition = pm.getNextPartition(latestCheckpoint);
         Assert.assertTrue(partition.isPresent());
         Assert.assertEquals("datestr=2017-05-02", partition.get());
     }
@@ -228,10 +264,15 @@ public class TestHDFSDatePartitionManager {
                 Optional.absent(),
                 this.fs);
 
-        pm.set(MetadataConstants.CHECKPOINT_KEY, val1);
-        pm.saveChanges();
+        final HDFSMetadataManager metadataManager = new HDFSMetadataManager(this.fs,
+                new Path(HDFSTestConstants.BASE_METADATA_PATH, JOBNAME).toString(),
+                new AtomicBoolean(true));
 
-        final Optional<String> partition = pm.getNextPartition();
+        metadataManager.set(MetadataConstants.CHECKPOINT_KEY, val1);
+        metadataManager.saveChanges();
+
+        final Optional<StringValue> latestCheckpoint = metadataManager.get(MetadataConstants.CHECKPOINT_KEY);
+        final Optional<String> partition = pm.getNextPartition(latestCheckpoint);
         Assert.assertFalse(partition.isPresent());
     }
 }

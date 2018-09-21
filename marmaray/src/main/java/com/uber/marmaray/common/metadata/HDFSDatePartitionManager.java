@@ -59,25 +59,24 @@ public class HDFSDatePartitionManager extends HDFSPartitionManager {
     }
 
     @Override
-    public Optional<String> getNextPartition() throws IOException {
+    public Optional<String> getNextPartition(
+            @NotEmpty final Optional<StringValue> latestCheckPoint) throws IOException {
 
         if (this.isSinglePartition()) {
             log.info("Next partition: {}", this.rawDataRootPath);
             return Optional.of(this.rawDataRootPath);
         } else {
-            final Optional<StringValue> lastCheckPoint = calculateLastCheckpoint();
-
-            if (lastCheckPoint.isPresent()) {
-                log.info("Last checkpoint: {}", lastCheckPoint.get().getValue());
+            if (latestCheckPoint.isPresent()) {
+                log.info("Last checkpoint: {}", latestCheckPoint.get().getValue());
             } else {
                 log.info("No last checkpoint found");
             }
 
             final LocalDate startDate = getDefaultStartDate();
 
-            final Optional<LocalDate> dt = lastCheckPoint.isPresent()
+            final Optional<LocalDate> dt = latestCheckPoint.isPresent()
                     ? Optional.of(DateUtil.convertToUTCDate(
-                            lastCheckPoint.get().getValue().replace(this.partitionKeyName, StringTypes.EMPTY)))
+                            latestCheckPoint.get().getValue().replace(this.partitionKeyName, StringTypes.EMPTY)))
                     : Optional.absent();
 
             final LocalDate compareDate = !dt.isPresent() || startDate.isAfter(dt.get()) ? startDate : dt.get();
