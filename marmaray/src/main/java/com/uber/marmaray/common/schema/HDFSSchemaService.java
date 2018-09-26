@@ -40,6 +40,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocatedFileStatus;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.hibernate.validator.constraints.NotEmpty;
 
@@ -58,6 +59,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public class HDFSSchemaService implements ISchemaService<HDFSSchemaServiceReader, HDFSSchemaServiceWriter>,
     Serializable {
 
+    private static final String AVRO_SCHEMA_FILE_PATTERN = "%s.%d.avsc";
     private final Configuration conf;
 
     public HDFSSchemaService(@NonNull final Configuration conf) {
@@ -102,9 +104,30 @@ public class HDFSSchemaService implements ISchemaService<HDFSSchemaServiceReader
         }
     }
 
+    /**
+     * It fetches latest version of the schema.
+     * @param schemaName Fully qualified schema name
+     * @param schemaVersion schema version
+     * @return Avro schema
+     */
+    public Schema getSchema(@NotEmpty final String schemaName, final int schemaVersion) {
+        try {
+            final HDFSSchemaServiceConfiguration conf = new HDFSSchemaServiceConfiguration(this.conf);
+            Path schemaPath = new Path(conf.getPath(), String.format(AVRO_SCHEMA_FILE_PATTERN, schemaName,
+                    schemaVersion));
+            return getSchemaFromPath(schemaPath);
+        } catch (IOException e) {
+            throw new JobRuntimeException("Unable to load schema", e);
+        }
+    }
+
     private Schema getSchemaFromFile(@NonNull final LocatedFileStatus resultSchemaFile) throws IOException {
+        return getSchemaFromPath(resultSchemaFile.getPath());
+    }
+
+    private Schema getSchemaFromPath(@NonNull final Path resultSchemaPath) throws IOException {
         final FileSystem fs = FileSystem.get(new HadoopConfiguration(this.conf).getHadoopConf());
-        final FSDataInputStream inputStream = fs.open(resultSchemaFile.getPath());
+        final FSDataInputStream inputStream = fs.open(resultSchemaPath);
         final String schemaString = IOUtils.toString(inputStream, UTF_8);
         return new Schema.Parser().parse(schemaString);
     }
@@ -125,11 +148,47 @@ public class HDFSSchemaService implements ISchemaService<HDFSSchemaServiceReader
 
     @Override
     public HDFSSchemaServiceWriter getWriter(@NotEmpty final String schemaName, final int schemaVersion) {
+        HDFSSchemaServiceWriter writer;
+        try {
+            final HDFSSchemaServiceConfiguration conf = new HDFSSchemaServiceConfiguration(this.conf);
+            Path schemaPath = new Path(conf.getPath(), String.format(AVRO_SCHEMA_FILE_PATTERN, schemaName,
+                    schemaVersion));
+            writer = new HDFSSchemaServiceWriter(getSchemaFromPath(schemaPath));
+        } catch (IOException e) {
+            throw new JobRuntimeException("Unable to load schema", e);
+        }
+        return writer;
+    }
+
+    /**
+     * It returns a writer with latest schema
+     * @param schemaName Fully qualified schema name
+     * @return An instance of {@link HDFSSchemaServiceWriter}
+     */
+    public HDFSSchemaServiceWriter getWriter(@NotEmpty final String schemaName) {
         return new HDFSSchemaServiceWriter(getSchema(schemaName));
     }
 
     @Override
     public HDFSSchemaServiceReader getReader(@NotEmpty final String schemaName, final int schemaVersion) {
+        HDFSSchemaServiceReader reader;
+        try {
+            final HDFSSchemaServiceConfiguration conf = new HDFSSchemaServiceConfiguration(this.conf);
+            Path schemaPath = new Path(conf.getPath(), String.format(AVRO_SCHEMA_FILE_PATTERN, schemaName,
+                    schemaVersion));
+            reader = new HDFSSchemaServiceReader(getSchemaFromPath(schemaPath));
+        } catch (IOException e) {
+            throw new JobRuntimeException("Unable to load schema", e);
+        }
+        return reader;
+    }
+
+    /**
+     * It returns a reader with latest schema
+     * @param schemaName Fully qualified schema name
+     * @return An instance of {@link HDFSSchemaServiceReader}
+     */
+    public HDFSSchemaServiceReader getReader(@NotEmpty final String schemaName) {
         return new HDFSSchemaServiceReader(getSchema(schemaName));
     }
 

@@ -35,13 +35,22 @@ public class TestHDFSSchemaService extends AbstractSparkTest {
     @Test
     public void testSchema() throws Exception {
         final HDFSSchemaService ss = getHdfsSchemaService();
-        final Schema schema = ss.getSchema(SCHEMA_NAME);
-        final GenericRecord data =
-            new GenericRecordBuilder(schema).set("firstName", "Eric").set("lastName", "Sayle").build();
-        final byte[] bytes = ss.getWriter(SCHEMA_NAME, 1).write(data);
-        final GenericRecord output = ss.getReader(SCHEMA_NAME, 1).read(bytes);
-        Assert.assertEquals(output.get("firstName").toString(), "Eric");
-        Assert.assertEquals(output.get("lastName").toString(), "Sayle");
+        final Schema schema1 = ss.getSchema(SCHEMA_NAME, 1);
+        final GenericRecord data1 =
+            new GenericRecordBuilder(schema1).set("firstName", "Eric").set("lastName", "Sayle").build();
+        final byte[] bytes1 = ss.getWriter(SCHEMA_NAME, 1).write(data1);
+        final GenericRecord output1 = ss.getReader(SCHEMA_NAME, 1).read(bytes1);
+        Assert.assertEquals(output1.get("firstName").toString(), "Eric");
+        Assert.assertEquals(output1.get("lastName").toString(), "Sayle");
+
+        final Schema schema2 = ss.getSchema(SCHEMA_NAME);
+        final GenericRecord data2 =
+                new GenericRecordBuilder(schema2).set("firstName", "Eason").set("lastName", "Lu").set("middleName", "Fitzgerald").build();
+        final byte[] bytes2 = ss.getWriter(SCHEMA_NAME).write(data2);
+        final GenericRecord output2 = ss.getReader(SCHEMA_NAME).read(bytes2);
+        Assert.assertEquals(output2.get("firstName").toString(), "Eason");
+        Assert.assertEquals(output2.get("lastName").toString(), "Lu");
+        Assert.assertEquals(output2.get("middleName").toString(), "Fitzgerald");
     }
 
     @Test(expected = InvalidDataException.class)
