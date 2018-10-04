@@ -1,12 +1,18 @@
 # Marmaray
 
+<p align="center">
+    <img src="docs/images/Marmaray_Primary.Logo_tagline.png">
+</p>
+
+_Note: For an End to End example of how all our components tie together, please see com.uber.marmaray.common.job.JsonHoodieIngestionJob_
+
 Marmaray is a generic Hadoop data ingestion and dispersal framework and library.  It is a plug-in based framework built on top of the Hadoop ecosystem where support can be added to ingest data from any source and disperse to any sink leveraging the power of Apache Spark.
 
 Marmaray describes a number of abstractions to support the ingestion of any source to any sink.  They are described at a high-level below to help developers understand the architecture and design of the overall system.
 
 **Data Model**
 
-The central component of our architecture is the introduction of the concept of what we termed the AvroPayload.  AvroPayload acts as a wrapper around Avro’s GenericRecord binary encoding format along with relevant metadata for our data processing needs. One of the major benefits of Avro data (GenericRecord) is that once an Avro schema is registered with Spark, data is only sent during internode network transfers and disk writes which are then highly optimized. Using Avro data running on top of Spark’s architecture means we can also take advantage of  Spark’s data compression and encryption features. These benefits factor heavily in helping our Spark jobs handle data at large scale more efficiently.  Avro includes a schema to specify the structure of the data being encoded while also supporting schema evolution.  For large data files, we take advantage that each record is encoded with the same schema and this schema only needs to be defined once in the file which reduces overhead.  To support our any-source to any-sink architecture, we require that all ingestion sources define converters from their schema format to Avro and that all dispersal sinks define converters from the Avro Schema to the native sink data model (i.e ByteBuffers for Cassandra).
+The central component of our architecture is the introduction of the concept of what we termed the AvroPayload.  AvroPayload acts as a wrapper around Avro’s GenericRecord binary encoding format along with relevant metadata for our data processing needs. One of the major benefits of Avro data (GenericRecord) is that once an Avro schema is registered with Spark, data is only sent during internode network transfers and disk writes which are then highly optimized. Using Avro data running on top of Spark’s architecture means we can also take advantage of Spark’s data compression and encryption features. These benefits factor heavily in helping our Spark jobs handle data at large scale more efficiently.  Avro includes a schema to specify the structure of the data being encoded while also supporting schema evolution.  For large data files, we take advantage that each record is encoded with the same schema and this schema only needs to be defined once in the file which reduces overhead.  To support our any-source to any-sink architecture, we require that all ingestion sources define converters from their schema format to Avro and that all dispersal sinks define converters from the Avro Schema to the native sink data model (i.e ByteBuffers for Cassandra).
 
 This allows an loose and intentional coupling in our data model, where once a source and its associated transformation has been defined, it theoretically can now be dispersed to any supported sink since all sinks are source agnostic and only care that the data is in the intermediate AvroPayload format.
 
