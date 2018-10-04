@@ -21,6 +21,7 @@ import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.HiveSourceConfiguration;
 import com.uber.marmaray.common.converters.data.SparkSourceDataConverter;
 import com.uber.marmaray.common.converters.schema.DataFrameSchemaConverter;
+import com.uber.marmaray.common.metadata.HDFSMetadataManager;
 import com.uber.marmaray.common.metadata.HDFSPartitionManager;
 import com.uber.marmaray.common.sources.IWorkUnitCalculator;
 import com.uber.marmaray.common.util.AbstractSparkTest;
@@ -34,12 +35,14 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.hadoop.fs.Path;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TestHiveSource extends AbstractSparkTest {
 
@@ -70,13 +73,13 @@ public class TestHiveSource extends AbstractSparkTest {
         final SparkSourceDataConverter converter = new SparkSourceDataConverter(dfSchema, avroSchema,
             hiveConf.getConf(), Sets.newHashSet(LEFT_FIELD, RIGHT_FIELD), new ErrorExtractor());
         final HiveSource source = new HiveSource(hiveConf, this.sqlContext.get(), converter);
-        final HDFSPartitionManager pm = new HDFSPartitionManager(METADATA_KEY,
-            this.metadataPath,
-            dataPath,
-            this.fileSystem.get());
 
-        final ParquetWorkUnitCalculator calculator = new ParquetWorkUnitCalculator();
-        calculator.initPreviousRunState(pm);
+        final HDFSMetadataManager metadataManager = new HDFSMetadataManager(this.fileSystem.get(),
+                new Path(this.metadataPath, METADATA_KEY).toString(),
+                new AtomicBoolean(true));
+
+        final ParquetWorkUnitCalculator calculator = new ParquetWorkUnitCalculator(hiveConf, this.fileSystem.get());
+        calculator.initPreviousRunState(metadataManager);
         final IWorkUnitCalculator.IWorkUnitCalculatorResult<String, HiveRunState> results
                 = calculator.computeWorkUnits();
         final JavaRDD<AvroPayload> rddData =

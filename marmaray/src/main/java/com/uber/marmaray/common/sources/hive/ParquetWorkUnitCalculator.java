@@ -17,7 +17,8 @@
 package com.uber.marmaray.common.sources.hive;
 
 import com.google.common.base.Optional;
-import com.google.common.base.Preconditions;
+import com.uber.marmaray.common.PartitionType;
+import com.uber.marmaray.common.configuration.HiveSourceConfiguration;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.metadata.HDFSDatePartitionManager;
 import com.uber.marmaray.common.metadata.HDFSPartitionManager;
@@ -31,7 +32,7 @@ import com.uber.marmaray.common.sources.IWorkUnitCalculator;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-
+import org.apache.hadoop.fs.FileSystem;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -41,7 +42,36 @@ public class ParquetWorkUnitCalculator implements
         IWorkUnitCalculator<String, HiveRunState, ParquetWorkUnitCalculatorResult, StringValue> {
 
     @Getter
+    private final HDFSPartitionManager partitionManager;
+
+    @Getter
     private Optional<String> nextPartition = Optional.absent();
+
+    @Getter
+    private final HiveSourceConfiguration hiveConf;
+
+    public ParquetWorkUnitCalculator(@NonNull final HiveSourceConfiguration hiveConf,
+                                     @NonNull final FileSystem fs) throws IOException {
+        this.hiveConf = hiveConf;
+        final PartitionType partitionType = hiveConf.getPartitionType();
+        log.info("Create partition manger with partition type: {}", partitionType);
+        if (partitionType.equals(PartitionType.NONE) || partitionType.equals(PartitionType.NORMAL)) {
+            // create partition manager internally
+            this.partitionManager = new HDFSPartitionManager(hiveConf.getJobName(),
+                    hiveConf.getBaseMetadataPath(),
+                    hiveConf.getDataPath(), fs);
+        } else if (partitionType.equals(PartitionType.DATE)) {
+            this.partitionManager = new HDFSDatePartitionManager(hiveConf.getJobName(),
+                    hiveConf.getBaseMetadataPath(),
+                    hiveConf.getDataPath(),
+                    hiveConf.getPartitionKeyName().get(),
+                    getHiveConf().getStartDate(),
+                    fs);
+        } else {
+            throw new JobRuntimeException("Error: Partition type is not supported. Partition type: "
+                    + partitionType);
+        }
+    }
 
     @Override
     public void setDataFeedMetrics(final DataFeedMetrics dataFeedMetrics) {
@@ -60,14 +90,9 @@ public class ParquetWorkUnitCalculator implements
     @Override
     public void initPreviousRunState(@NonNull final IMetadataManager<StringValue> metadataManager) {
         try {
-            if (metadataManager instanceof HDFSPartitionManager) {
-                this.nextPartition = ((HDFSPartitionManager) metadataManager).getNextPartition();
-            } else if (metadataManager instanceof HDFSDatePartitionManager) {
-                this.nextPartition = ((HDFSDatePartitionManager) metadataManager).getNextPartition();
-            } else {
-                throw new JobRuntimeException("The only supported metadata managers for ParquetWorkUnitCalculator"
-                        + " are HDFSPartitionManager or HDFSDataPartitionManager");
-            }
+            final Optional<StringValue> latestCheckpoint = metadataManager.get(MetadataConstants.CHECKPOINT_KEY);
+            log.info("Get latest change point: {}", latestCheckpoint);
+            this.nextPartition = this.partitionManager.getNextPartition(latestCheckpoint);
         } catch (final IOException e) {
             throw new JobRuntimeException("Unable to get the next partition.  Error message: " + this.nextPartition, e);
         }
@@ -85,18 +110,14 @@ public class ParquetWorkUnitCalculator implements
          * Until we add Cassandra metadata information, we assume explicitly this is a HDFSPartitionManager.
          * Todo: T898695 - Implement metadata manager using Cassandra backend
          */
-        Preconditions.checkState(metadataManager instanceof HDFSPartitionManager);
-        final HDFSPartitionManager partitionManager = (HDFSPartitionManager) metadataManager;
 
         if (!this.nextPartition.isPresent()) {
             log.warn("No partition was found to process.  Reusing latest checkpoint if exists as checkpoint key");
-            if (partitionManager.getLatestCheckpoint().isPresent()) {
-                metadataManager.set(MetadataConstants.CHECKPOINT_KEY, partitionManager.getLatestCheckpoint().get());
-            }
             return;
         }
 
         if (partitionManager.isSinglePartition()) {
+            log.info("Single partition manager, save next partition {} in metadata manager", this.partitionManager);
             metadataManager.set(MetadataConstants.CHECKPOINT_KEY, new StringValue(this.nextPartition.get()));
         } else {
             /*
@@ -104,9 +125,9 @@ public class ParquetWorkUnitCalculator implements
              * we explicitly reprocess a older single existing partition of a Hive table, we write out the latest
              * checkpoint that we have processed so on the next run we can continue processing at the latest point.
              */
-            if (checkpointGreaterThanNextPartition(partitionManager.getLatestCheckpoint())) {
-                metadataManager.set(MetadataConstants.CHECKPOINT_KEY, partitionManager.getLatestCheckpoint().get());
-            } else {
+            final Optional<StringValue> latestCheckpoint = metadataManager.get(MetadataConstants.CHECKPOINT_KEY);
+            if (!checkpointGreaterThanNextPartition(latestCheckpoint)) {
+                log.info("Save next partition {} in metadata manager", this.nextPartition);
                 metadataManager.set(MetadataConstants.CHECKPOINT_KEY, new StringValue(this.nextPartition.get()));
             }
         }

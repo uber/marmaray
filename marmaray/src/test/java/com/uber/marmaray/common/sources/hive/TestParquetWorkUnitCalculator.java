@@ -17,14 +17,19 @@
 package com.uber.marmaray.common.sources.hive;
 
 import com.google.common.base.Optional;
+import com.uber.marmaray.common.PartitionType;
 import com.uber.marmaray.common.configuration.Configuration;
+import com.uber.marmaray.common.configuration.HiveSourceConfiguration;
 import com.uber.marmaray.common.metadata.HDFSPartitionManager;
 import com.uber.marmaray.common.metadata.MetadataConstants;
+import com.uber.marmaray.common.metadata.HDFSMetadataManager;
 import com.uber.marmaray.common.metadata.StringValue;
+import com.uber.marmaray.common.PartitionType;
 import com.uber.marmaray.common.sources.IWorkUnitCalculator;
 import com.uber.marmaray.common.util.FileTestUtil;
 import com.uber.marmaray.utilities.FSUtils;
 import com.uber.marmaray.utilities.StringTypes;
+import jdk.nashorn.internal.scripts.JO;
 import lombok.NonNull;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -36,6 +41,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TestParquetWorkUnitCalculator {
 
@@ -45,15 +52,26 @@ public class TestParquetWorkUnitCalculator {
     private static final String PARTITION_3 = "partition3";
     private FileSystem fileSystem;
     private HDFSPartitionManager partitionManager;
+    private HDFSMetadataManager metadataManager;
     private String dataPath;
     private String metadataPath;
-
+    private Configuration config;
+    private HiveSourceConfiguration hiveConfig;
 
     @Before
     public void setupTest() throws IOException {
-        this.fileSystem = FSUtils.getFs(new Configuration());
+
+        this.config = new Configuration();
+        this.fileSystem = FSUtils.getFs(this.config);
         this.dataPath = FileTestUtil.getTempFolder();
         this.metadataPath = FileTestUtil.getTempFolder();
+
+        this.config.setProperty(HiveSourceConfiguration.JOB_NAME, JOB_NAME);
+        this.config.setProperty(HiveSourceConfiguration.BASE_METADATA_PATH, this.metadataPath);
+        this.config.setProperty(HiveSourceConfiguration.HIVE_DATA_PATH, this.dataPath);
+        this.config.setProperty(HiveSourceConfiguration.PARTITION_TYPE, PartitionType.NORMAL.toString());
+
+        this.hiveConfig = new HiveSourceConfiguration(this.config);
     }
 
     @After
@@ -74,16 +92,27 @@ public class TestParquetWorkUnitCalculator {
                 this.dataPath,
                 this.fileSystem);
 
+        this.metadataManager = new HDFSMetadataManager(this.fileSystem,
+                new Path(this.metadataPath, JOB_NAME).toString(),
+                new AtomicBoolean(true));
+
         Assert.assertFalse(this.partitionManager.isSinglePartition());
-        Assert.assertFalse(this.partitionManager.getLatestCheckpoint().isPresent());
-        virtuallyProcessPartition(this.partitionManager, Optional.absent(), PARTITION_2);
+        final Optional<StringValue> latestCheckpoint = getLatestCheckpoint(this.metadataManager);
+        Assert.assertFalse(latestCheckpoint.isPresent());
+        virtuallyProcessPartition(this.partitionManager, this.metadataManager, Optional.absent(), PARTITION_2);
 
         final HDFSPartitionManager partitionManager2 = new HDFSPartitionManager(JOB_NAME,
                 this.metadataPath,
                 this.dataPath,
                 this.fileSystem);
-        Assert.assertTrue(partitionManager2.getLatestCheckpoint().isPresent());
-        virtuallyProcessPartition(partitionManager2, Optional.of(new StringValue(PARTITION_2)), PARTITION_3);
+
+        final HDFSMetadataManager metadataManager2 = new HDFSMetadataManager(this.fileSystem,
+                new Path(this.metadataPath, JOB_NAME).toString(),
+                new AtomicBoolean(true));
+
+        final Optional<StringValue> latestCheckpoint2 = getLatestCheckpoint(metadataManager2);
+        Assert.assertTrue(latestCheckpoint2.isPresent());
+        virtuallyProcessPartition(partitionManager2, metadataManager2, Optional.of(new StringValue(PARTITION_2)), PARTITION_3);
     }
 
     @Test
@@ -97,10 +126,13 @@ public class TestParquetWorkUnitCalculator {
                 this.dataPath,
                 this.fileSystem);
 
-        Assert.assertTrue(this.partitionManager.isSinglePartition());
-        Assert.assertFalse(this.partitionManager.getLatestCheckpoint().isPresent());
+        this.metadataManager = new HDFSMetadataManager(this.fileSystem,
+                new Path(this.metadataPath, JOB_NAME).toString(),
+                new AtomicBoolean(true));
 
-        virtuallyProcessPartition(this.partitionManager, Optional.absent(), this.dataPath );
+        Assert.assertTrue(this.partitionManager.isSinglePartition());
+        Assert.assertFalse(getLatestCheckpoint(this.metadataManager).isPresent());
+        virtuallyProcessPartition(this.partitionManager, this.metadataManager, Optional.absent(), this.dataPath);
 
         // A checkpoint now exists.  Now virtually reprocess that single partition explicitly via data path
         // by initializing and saving run states
@@ -108,21 +140,27 @@ public class TestParquetWorkUnitCalculator {
                 this.metadataPath,
                 this.dataPath,
                 this.fileSystem);
-        Assert.assertTrue(pm2.getLatestCheckpoint().isPresent());
-        Assert.assertEquals(this.dataPath, pm2.getLatestCheckpoint().get().getValue());
 
-        final ParquetWorkUnitCalculator calc = new ParquetWorkUnitCalculator();
-        calc.initPreviousRunState(pm2);
+        final HDFSMetadataManager metadataManager2 = new HDFSMetadataManager(this.fileSystem,
+                new Path(this.metadataPath, JOB_NAME).toString(),
+                new AtomicBoolean(true));
+
+        final Optional<StringValue> latestCheckpoint2 = getLatestCheckpoint(metadataManager2);
+        Assert.assertTrue(latestCheckpoint2.isPresent());
+        Assert.assertEquals(this.dataPath, latestCheckpoint2.get().getValue());
+
+        final ParquetWorkUnitCalculator calc = new ParquetWorkUnitCalculator(this.hiveConfig, this.fileSystem);
+        calc.initPreviousRunState(metadataManager2);
         Assert.assertTrue(calc.getNextPartition().isPresent());
         Assert.assertEquals(this.dataPath, calc.getNextPartition().get());
 
         // explicitly remove the old checkpoint so we see it is set correctly to latest checkpoint when
         // saving next run state
-        pm2.set(MetadataConstants.CHECKPOINT_KEY, new StringValue(StringTypes.EMPTY));
-        calc.initPreviousRunState(pm2);
+        metadataManager2.set(MetadataConstants.CHECKPOINT_KEY, new StringValue(StringTypes.EMPTY));
+        calc.initPreviousRunState(metadataManager2);
         final IWorkUnitCalculator.IWorkUnitCalculatorResult<String, HiveRunState> iresult = calc.computeWorkUnits();
-        calc.saveNextRunState(pm2, iresult.getNextRunState());
-        Assert.assertEquals(this.dataPath, pm2.get(MetadataConstants.CHECKPOINT_KEY).get().getValue());
+        calc.saveNextRunState(metadataManager2, iresult.getNextRunState());
+        Assert.assertEquals(this.dataPath, metadataManager2.get(MetadataConstants.CHECKPOINT_KEY).get().getValue());
     }
 
     @Test
@@ -136,18 +174,25 @@ public class TestParquetWorkUnitCalculator {
                 this.dataPath,
                 this.fileSystem);
 
+        this.metadataManager = new HDFSMetadataManager(this.fileSystem,
+                new Path(this.metadataPath, JOB_NAME).toString(),
+                new AtomicBoolean(true));
+
         // partition 1 is in effect already processed since the checkpoint is larger
         final StringValue val1 = new StringValue(PARTITION_2);
-        this.partitionManager.set(MetadataConstants.CHECKPOINT_KEY, val1);
-        this.partitionManager.saveChanges();
+        this.metadataManager.set(MetadataConstants.CHECKPOINT_KEY, val1);
+        this.metadataManager.saveChanges();
 
-        final ParquetWorkUnitCalculator calculator = new ParquetWorkUnitCalculator();
-        calculator.initPreviousRunState(this.partitionManager);
+        final ParquetWorkUnitCalculator calculator = new ParquetWorkUnitCalculator(this.hiveConfig, this.fileSystem);
+        calculator.initPreviousRunState(this.metadataManager);
+
         final IWorkUnitCalculator.IWorkUnitCalculatorResult iresult = calculator.computeWorkUnits();
         Assert.assertTrue(iresult instanceof ParquetWorkUnitCalculatorResult);
+
         final ParquetWorkUnitCalculatorResult result =
                 (ParquetWorkUnitCalculatorResult) iresult;
         final List<String> workUnits = result.getWorkUnits();
+
         Assert.assertEquals(1, workUnits.size());
         Assert.assertEquals(PARTITION_3, workUnits.get(0));
         Assert.assertTrue(result.getNextRunState().getPartition().isPresent());
@@ -155,20 +200,33 @@ public class TestParquetWorkUnitCalculator {
     }
 
     private void virtuallyProcessPartition(@NonNull final HDFSPartitionManager partitionManager,
+                                           @NonNull final HDFSMetadataManager metadataManager,
                                            @NotEmpty final Optional<StringValue> expectedLatestCheckpoint,
-                                           @NotEmpty final String expectedNextPartition) {
-        Assert.assertEquals(expectedLatestCheckpoint, partitionManager.getLatestCheckpoint());
+                                           @NotEmpty final String expectedNextPartition) throws IOException {
+        Assert.assertEquals(expectedLatestCheckpoint, getLatestCheckpoint(metadataManager));
 
-        final ParquetWorkUnitCalculator calculator = new ParquetWorkUnitCalculator();
-        calculator.initPreviousRunState(partitionManager);
+        final ParquetWorkUnitCalculator calculator = new ParquetWorkUnitCalculator(this.hiveConfig, this.fileSystem);
+        calculator.initPreviousRunState(metadataManager);
+
         final ParquetWorkUnitCalculatorResult result = calculator.computeWorkUnits();
         final List<String> workUnits = result.getWorkUnits();
+
         Assert.assertEquals(1, workUnits.size());
         Assert.assertEquals(expectedNextPartition, workUnits.get(0));
         Assert.assertTrue(result.getNextRunState().getPartition().isPresent());
         Assert.assertEquals(expectedNextPartition, result.getNextRunState().getPartition().get());
-        calculator.saveNextRunState(partitionManager, result.getNextRunState());
-        Assert.assertEquals(expectedNextPartition, partitionManager.get(MetadataConstants.CHECKPOINT_KEY).get().getValue());
-        partitionManager.saveChanges();
+
+        calculator.saveNextRunState(metadataManager, result.getNextRunState());
+        Assert.assertEquals(expectedNextPartition, metadataManager.get(MetadataConstants.CHECKPOINT_KEY).get().getValue());
+        metadataManager.saveChanges();
     }
+
+     private Optional<StringValue> getLatestCheckpoint(@NonNull HDFSMetadataManager metadataManager) throws IOException {
+        final Map<String, StringValue> metadataMap = metadataManager.loadMetadata();
+
+        return metadataMap.containsKey(MetadataConstants.CHECKPOINT_KEY)
+                ? Optional.of(metadataMap.get(MetadataConstants.CHECKPOINT_KEY))
+                : Optional.absent();
+    }
+
 }

@@ -14,15 +14,13 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
-package com.uber.marmaray.common.metadata;
 
+package com.uber.marmaray.common.metadata;
 import com.google.common.base.Optional;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
@@ -36,12 +34,11 @@ import org.apache.hadoop.fs.Path;
 import org.hibernate.validator.constraints.NotEmpty;
 
 /**
- * {@link HDFSPartitionManager} wraps {@link HDFSMetadataManager} to add specific capabilities to
- * add, read, and retrieve partition information that is stored in HDFS.  This is built on top of the
- * generic read/write capabilities of {@link HDFSMetadataManager}
+ * {@link HDFSPartitionManager} adds specific capabilities to
+ * add, read, and retrieve partition information that is stored in HDFS.
  */
 @Slf4j
-public class HDFSPartitionManager extends HDFSMetadataManager {
+public class HDFSPartitionManager {
     @NotEmpty @Getter
     protected final String rawDataRootPath;
 
@@ -54,14 +51,10 @@ public class HDFSPartitionManager extends HDFSMetadataManager {
     @Getter
     private final boolean isSinglePartition;
 
-    @Getter
-    private Optional<StringValue> latestCheckpoint;
-
     public HDFSPartitionManager(@NotEmpty final String metadataKey,
                                 @NotEmpty final String genericBaseMetadataPath,
                                 @NotEmpty final String baseDataPath,
                                 @NonNull final FileSystem fileSystem) throws IOException {
-        super(fileSystem, new Path(genericBaseMetadataPath, metadataKey).toString(), new AtomicBoolean(true));
         this.metadataKey = metadataKey;
         this.rawDataRootPath = new Path(baseDataPath).toString();
         log.info(this.toString());
@@ -69,7 +62,6 @@ public class HDFSPartitionManager extends HDFSMetadataManager {
         try {
             final FileStatus[] fileStatuses = this.fileSystem.listStatus(new Path(baseDataPath));
             this.isSinglePartition = !Arrays.stream(fileStatuses).anyMatch(fs -> fs.isDirectory());
-            this.latestCheckpoint = calculateLastCheckpoint();
         } catch (final IOException e) {
             throw new JobRuntimeException("IOException encountered. Path:" + baseDataPath, e);
         }
@@ -82,19 +74,19 @@ public class HDFSPartitionManager extends HDFSMetadataManager {
      * @return
      * @throws IOException
      */
-    public Optional<String> getNextPartition() throws IOException {
+    public Optional<String> getNextPartition(
+            @NotEmpty final Optional<StringValue> latestCheckpoint) throws IOException {
         if (this.isSinglePartition) {
             log.info("Next partition: {}", this.rawDataRootPath);
             return Optional.of(this.rawDataRootPath);
         } else {
-            this.latestCheckpoint = calculateLastCheckpoint();
-            if (this.latestCheckpoint.isPresent()) {
-                log.info("Last checkpoint: {}", this.latestCheckpoint.get());
+            if (latestCheckpoint.isPresent()) {
+                log.info("Last checkpoint: {}", latestCheckpoint.get());
             } else {
                 log.info("No last checkpoint found");
             }
 
-            final java.util.Optional nextPartition = listPartitionsAfterCheckpoint(this.latestCheckpoint)
+            final java.util.Optional nextPartition = listPartitionsAfterCheckpoint(latestCheckpoint)
                     .stream()
                     .sorted()
                     .findFirst();
@@ -119,21 +111,6 @@ public class HDFSPartitionManager extends HDFSMetadataManager {
                 .filter(path -> !path.startsWith(StringTypes.DOT))
                 .collect(Collectors.toList());
         return partitions;
-    }
-
-    @Override
-    public String toString() {
-        final String info = String.format("HDFSPartitionManager Metadata Path: %s, Data Path: %s, Metadata Key %s",
-                this.getBaseMetadataPath(), this.rawDataRootPath, this.metadataKey);
-        return info;
-    }
-
-    protected Optional<StringValue> calculateLastCheckpoint() throws IOException {
-        final Map<String, StringValue> metadataMap = this.loadMetadata();
-
-        return metadataMap.containsKey(MetadataConstants.CHECKPOINT_KEY)
-                ? Optional.of(metadataMap.get(MetadataConstants.CHECKPOINT_KEY))
-                : Optional.absent();
     }
 
     private List<String> listPartitionsAfterCheckpoint(final Optional<StringValue> checkpoint) throws IOException {
