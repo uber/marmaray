@@ -32,10 +32,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Slf4j
 /**
  * {@link GenericRecordUtil} defines utility methods for working with Generic Records
  */
+@Slf4j
 public final class GenericRecordUtil {
 
     private GenericRecordUtil() {

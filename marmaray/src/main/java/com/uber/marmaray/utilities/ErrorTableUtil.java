@@ -51,10 +51,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.uber.marmaray.utilities.DateUtil.DATE_PARTITION_FORMAT;
 
-@Slf4j
 /**
  * {@link ErrorTableUtil} defines utility methods to interact with the error tables
  */
+@Slf4j
 public final class ErrorTableUtil {
 
     public static final String HADOOP_ROW_KEY = "Hadoop_Row_Key";

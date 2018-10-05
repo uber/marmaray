@@ -31,13 +31,13 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 
-@Slf4j
 /**
  * {@link ExecutionTimeJobExecutionStrategy} is a {@link IJobExecutionStrategy} that sorts the {@link JobDag}s by
  * execution time and latest completion, so DAGs that have not finished will run first, followed by jobs sorted by
  * execution time descending.
  * This order should help prevent individual long-running dags from keeping the execution from completing on time.
  */
+@Slf4j
 public class ExecutionTimeJobExecutionStrategy implements IJobExecutionStrategy {
 
     public static final int DEFAULT_LAST_EXECUTION_TIME_THRESHOLD_HOURS = 6;

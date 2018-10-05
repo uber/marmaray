@@ -23,12 +23,12 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
-@AllArgsConstructor
 /**
  * {@link ReporterAction} is an implemetation of the {@link IJobDagAction} interface and is used to
  * report metrics
  */
+@Slf4j
+@AllArgsConstructor
 public class ReporterAction implements IJobDagAction {
 
     public static int DEFAULT_TIMEOUT_SECONDS = 120;

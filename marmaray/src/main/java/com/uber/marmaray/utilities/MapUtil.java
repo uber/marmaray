@@ -29,10 +29,10 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.validator.constraints.NotEmpty;
 
-@Slf4j
 /**
  * {@link MapUtil} defines utility methods for working with maps
  */
+@Slf4j
 public class MapUtil {
 
     public static final String KEY_VALUE_SEPARATOR = StringTypes.COLON;

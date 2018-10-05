@@ -16,14 +16,14 @@
  */
 package com.uber.marmaray.common.exceptions;
 
+import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.converters.data.HoodieSinkDataConverter;
 import lombok.NonNull;
-import org.apache.avro.generic.GenericRecord;
 import org.hibernate.validator.constraints.NotEmpty;
 
 /**
  * It is a checked exception and should be thrown when there is either missing or invalid user defined field in
- * data. Check {@link HoodieSinkDataConverter#getKey(GenericRecord)}
+ * data. Check {@link HoodieSinkDataConverter#getRecordKey(AvroPayload)}
  * for an example.
  */
 public class InvalidDataException extends Exception {

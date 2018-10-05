@@ -40,7 +40,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Uses {@link HDFSMetadataManager} internally to interact with the backend if sourceType is set to HDFS
  *
  */
-
 @Slf4j
 public class JobManagerMetadataTracker {
 

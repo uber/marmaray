@@ -28,12 +28,12 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 /**
  * {@link LockManagerConfiguration} defines configurations taking locks on jobs via ZooKeeper
  *
  * All properties start with {@link #LOCK_MANAGER_PREFIX}.
  */
+@Slf4j
 public class LockManagerConfiguration {
 
     public static final String LOCK_MANAGER_PREFIX = Configuration.MARMARAY_PREFIX + "lock_manager.";

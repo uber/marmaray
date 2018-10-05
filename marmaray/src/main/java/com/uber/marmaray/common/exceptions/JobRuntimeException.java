@@ -22,7 +22,6 @@ import org.hibernate.validator.constraints.NotEmpty;
 /**
  * This is the parent runtime exception thrown whenever job encounters unrecoverable exception.
  */
-
 public class JobRuntimeException extends RuntimeException {
     public JobRuntimeException(@NotEmpty final String message) {
         super(message);

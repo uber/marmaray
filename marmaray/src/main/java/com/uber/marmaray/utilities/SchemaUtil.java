@@ -35,10 +35,10 @@ import org.hibernate.validator.constraints.NotEmpty;
 
 import java.io.IOException;
 
-@Slf4j
 /**
  * {@link SchemaUtil} defines utility methods for working with schemas
  */
+@Slf4j
 public final class SchemaUtil {
 
     public static final String DISPERSAL_TIMESTAMP = "dispersal_timestamp";
@@ -51,7 +51,7 @@ public final class SchemaUtil {
      * This utility method will iterate through a directory containing parquet files, find the first file,
      * and only read in the Parquet metadata and convert the parquet schema to the equivalent Spark StructType.
      *
-     * Thsis method is useful because it does not require reading in all the data into memory to determine the schema
+     * This method is useful because it does not require reading in all the data into memory to determine the schema
      * and only reads in the required metadata located in the footer
      * @param parquetDir
      * @return StructType equivalent of the parquet schema

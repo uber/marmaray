@@ -33,10 +33,10 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
-@Slf4j
 /**
  * {@link FSUtils} defines utility methods with interacting with a filesystem
  */
+@Slf4j
 public class FSUtils {
 
     // Metadata file names in HDFS = nanoseconds since epoch so we can sort by name

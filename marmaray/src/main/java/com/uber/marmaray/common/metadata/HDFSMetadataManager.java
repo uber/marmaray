@@ -53,12 +53,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-@Slf4j
 /**
  * {@link HDFSMetadataManager} implements the {@link IMetadataManager} interface, adding the capability
  * to put and retrieve generic metadata from HDFS.  All metadata will be stored under a single filename
  * with the name = System.currentTimeMillis() when {@link IMetadataManager#saveChanges()} is invoked
  */
+@Slf4j
 public class HDFSMetadataManager implements IMetadataManager<StringValue> {
     public static final int DEFAULT_NUM_METADATA_FILES_TO_RETAIN = 5;
     private static final int SERIALIZATION_VERSION = 1;

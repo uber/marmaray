@@ -19,7 +19,6 @@ package com.uber.marmaray.common.exceptions;
 /**
  * Thrown when any required property for a module is not specified.
  */
-
 public class MissingPropertyException extends JobRuntimeException {
     public MissingPropertyException(final String propertyName) {
         super("property:" + propertyName);

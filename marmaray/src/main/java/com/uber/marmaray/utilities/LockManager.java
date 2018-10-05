@@ -48,7 +48,6 @@ import lombok.extern.slf4j.Slf4j;
  * name. {@link #batchLock(List, String)} acquire locks a list of lock name strings. It only
  * succeeds and keeps all the locks if all the acquiring were successful.
  */
-
 @Slf4j
 public class LockManager implements AutoCloseable {
     @NonNull

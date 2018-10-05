@@ -21,7 +21,6 @@ import lombok.NonNull;
 /**
  * {@link IFunctionThrowsException} is the interface for an function throwing exceptions.
  */
-
 @FunctionalInterface
 public interface IFunctionThrowsException<T, R> {
     R apply(@NonNull final T t) throws Exception;
