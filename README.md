@@ -10,6 +10,37 @@ Marmaray is a generic Hadoop data ingestion and dispersal framework and library.
 
 Marmaray describes a number of abstractions to support the ingestion of any source to any sink.  They are described at a high-level below to help developers understand the architecture and design of the overall system.
 
+This system has been canonically used to ingest data into a Hadoop data lake and disperse data from a data lake to online data stores usually with lower latency semantics.  The framework was intentionally designed, however, to not be tightly coupled to just this particular use case and can move data from any source to any sink.
+**End to End Jobflow**
+
+The figure below illustrates a high level flow of how Marmaray jobs are orchestrated, independent of the specific source or sink.
+
+<p align="center">
+    <img src="docs/images/end_to_end_job_flow.png">
+</p>
+
+During this process, a configuration defining specific attributes for each source and sink orchestrates every step of the next job. This includes figuring out the amount of data we need to process (i.e., its Work Unit), applying forking functions to split the raw data, for example,  into ‘valid’ and ‘error’ records and converting the data to an appropriate sink format.  At the end of the job the metadata will be saved/updated in the metadata manager, and metrics can be reported to track progress.
+
+The following sections give an overview of each of the major components that enable the job flow previously illustrated.
+
+**Avro Payload**
+
+The central component of Marmaray’s architecture is what we call the AvroPayload, a wrapper around Avro’s GenericRecord binary encoding format which includes relevant metadata for our data processing needs.
+
+One of the major benefits of Avro data (GenericRecord) is that it is efficient both in its memory and network usage, as the binary encoded data can be sent over the wire with minimal schema overhead compared to JSON. Using Avro data running on top of Spark’s architecture means we can also take advantage of Spark’s data compression and encryption features. These benefits help our Spark jobs more efficiently handle data at a large scale.
+
+To support our any-source to any-sink architecture, we require that all ingestion sources define converters from their schema format to Avro and that all dispersal sinks define converters from the Avro Schema to the native sink data model (i.e., ByteBuffers for Cassandra).
+
+Requiring that all converters either convert data to or from an AvroPayload format allows a loose and intentional coupling in our data model. Once a source and its associated transformation have been defined, the source theoretically can be dispersed to any supported sink, since all sinks are source-agnostic and only care that the data is in the intermediate AvroPayload format.
+
+This is illustrated in the figure below: 
+
+<p align="left">
+    <img src="docs/images/avro_payload_conversion.png">
+</p>
+
+
+
 **Data Model**
 
 The central component of our architecture is the introduction of the concept of what we termed the AvroPayload.  AvroPayload acts as a wrapper around Avro’s GenericRecord binary encoding format along with relevant metadata for our data processing needs. One of the major benefits of Avro data (GenericRecord) is that once an Avro schema is registered with Spark, data is only sent during internode network transfers and disk writes which are then highly optimized. Using Avro data running on top of Spark’s architecture means we can also take advantage of Spark’s data compression and encryption features. These benefits factor heavily in helping our Spark jobs handle data at large scale more efficiently.  Avro includes a schema to specify the structure of the data being encoded while also supporting schema evolution.  For large data files, we take advantage that each record is encoded with the same schema and this schema only needs to be defined once in the file which reduces overhead.  To support our any-source to any-sink architecture, we require that all ingestion sources define converters from their schema format to Avro and that all dispersal sinks define converters from the Avro Schema to the native sink data model (i.e ByteBuffers for Cassandra).
@@ -22,7 +53,7 @@ The primary function of ingestion and dispersal jobs are to perform transformati
 
 A secondary but critical function of DataConverters is to produce error records with every transformation.  Before data is ingested into our Hadoop data lake, it is critical that all data conforms to a schema for analytical purposes and any data that is malformed, missing required fields, or otherwise deemed to have issues will be filtered out and written to error tables.  This ensures a high level of data quality in our Hadoop data lake.  This functionality is abstracted out by only exposing a “convert()” method to user.  The convert() will act on a single piece of datum from the input schema format and do one of the following:
 Return an output record in the desired output schema format
-Write the input record to the error table with an error message and other useful metadata
+Write the input record to the error table with an error message and other useful metadata or discard the record.
 
 Using the Kafka -> Hudi (Hive) ingestion case, we use 2 converters:
 
