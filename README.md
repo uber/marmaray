@@ -11,7 +11,8 @@ Marmaray is a generic Hadoop data ingestion and dispersal framework and library.
 Marmaray describes a number of abstractions to support the ingestion of any source to any sink.  They are described at a high-level below to help developers understand the architecture and design of the overall system.
 
 This system has been canonically used to ingest data into a Hadoop data lake and disperse data from a data lake to online data stores usually with lower latency semantics.  The framework was intentionally designed, however, to not be tightly coupled to just this particular use case and can move data from any source to any sink.
-**End to End Jobflow**
+
+**End-to-End Job Flow**
 
 The figure below illustrates a high level flow of how Marmaray jobs are orchestrated, independent of the specific source or sink.
 
@@ -22,6 +23,14 @@ The figure below illustrates a high level flow of how Marmaray jobs are orchestr
 During this process, a configuration defining specific attributes for each source and sink orchestrates every step of the next job. This includes figuring out the amount of data we need to process (i.e., its Work Unit), applying forking functions to split the raw data, for example,  into ‘valid’ and ‘error’ records and converting the data to an appropriate sink format.  At the end of the job the metadata will be saved/updated in the metadata manager, and metrics can be reported to track progress.
 
 The following sections give an overview of each of the major components that enable the job flow previously illustrated.
+
+**High-Level Architecture**
+
+The architecture diagram below illustrates the fundamental building blocks and abstractions in Marmaray that enable its overall job flow. These generic components facilitate the ability to add extensions to Marmaray, letting it support new sources and sinks.
+
+<p align="center">
+    <img src="docs/images/High_Level_Architecture.png">
+</p>
 
 **Avro Payload**
 
@@ -38,7 +47,6 @@ This is illustrated in the figure below:
 <p align="left">
     <img src="docs/images/avro_payload_conversion.png">
 </p>
-
 
 
 **Data Model**
@@ -80,6 +88,9 @@ All Marmaray jobs need a persistent store, known as the metadata manager, to sto
 
 When a job begins execution, an in memory copy of the current metadata is created and shared with the appropriate job components which will need to update the in-memory copy during job execution.  If the job fails, this in memory copy will be discarded to ensure that the next run will start from the previously saved state of the last successful run.  If the job succeeds the in-memory copy is now saved to the persistent store. As of now since the metadata manager has an in-memory copy there is a limitation on the amount of metadata a job can store
 
+<p align="center">
+    <img src="docs/images/Metadata_Manager.png">
+</p>
 
 **Fork Operator**
 
@@ -88,6 +99,10 @@ The main purpose for the ForkOperator is to split the input stream of records in
 The internal execution engine of Spark performs all operations in a manner of lazy-evaluation.  Unless an action is performed (count, forEach, etc), no data is actually read.  The ForkOperator was invented to avoid the re-execution of input transformations as well as the re-reading of data from the source which would have been very expensive.
 
 A provided ForkFunction is used by the ForkOperator to tag each datum with a valid or error annotation.  These ForkOperators are called by our data converters during job execution.  Users can now filter to get the desired collection of tagged records.  These records are persisted in Spark to avoid having to re-read the raw input and re-apply the transformation when filtering.   By default we currently use DISK_ONLY persistence to avoid memory overhead and pressure. These components are used in DataConverters to split input stream into 2 streams (output + error) but it can be used for splitting it into more than 2 streams with overlapping records if desired.  For example, we could decide to split an input stream of integers (1 to 6) into an even number stream (2,4,6), odd number stream (1,3,5) and a multiple of 3 stream (3,6).
+
+<p align="center">
+    <img src="docs/images/ForkOperator_ForkFunction.png">
+</p>
 
 **JobDag**
 
