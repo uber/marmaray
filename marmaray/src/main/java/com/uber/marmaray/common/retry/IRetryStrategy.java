@@ -22,7 +22,6 @@ import com.uber.marmaray.common.exceptions.RetryException;
  * {@link IRetryStrategy} determines if a function should be retried or not. retryMessage returns
  * the description of the current attempt.
  */
-
 public interface IRetryStrategy {
     boolean shouldRetry() throws RetryException;
     String retryMessage();

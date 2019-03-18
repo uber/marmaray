@@ -23,11 +23,11 @@ import lombok.ToString;
 
 import java.io.Serializable;
 
-@ToString
-@AllArgsConstructor
 /**
  * {@link TimestampInfo} contains timestamp information, either as a String or a long
  */
+@ToString
+@AllArgsConstructor
 public class TimestampInfo implements Serializable {
     @Getter
     final Optional<String> timestamp;

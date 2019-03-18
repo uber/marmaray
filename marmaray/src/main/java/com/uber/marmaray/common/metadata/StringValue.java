@@ -19,12 +19,12 @@ package com.uber.marmaray.common.metadata;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 
-@AllArgsConstructor
-@EqualsAndHashCode(callSuper = false)
 /**
  * {@link StringValue} extends {@link AbstractValue} and wraps a String that represents the job metadata
  * that will be stored in HDFS
  */
+@AllArgsConstructor
+@EqualsAndHashCode(callSuper = false)
 public class StringValue extends AbstractValue<String> {
 
     private final String value;

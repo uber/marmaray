@@ -42,10 +42,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-@Slf4j
 /**
  * {@link KafkaUtil} provides utility methods for interacting with Kafka
  */
+@Slf4j
 public final class KafkaUtil {
 
     public static final int FETCH_OFFSET_TIMEOUT_SEC = 60;

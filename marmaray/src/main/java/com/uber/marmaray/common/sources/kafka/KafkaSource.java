@@ -56,7 +56,6 @@ import java.util.TreeMap;
  * It gets work units from {@link KafkaWorkUnitCalculatorResult} as a list of {@link OffsetRange}, reads messages from
  * kafka and returns {@link JavaRDD<AvroPayload>}.
  */
-
 @Slf4j
 @AllArgsConstructor
 public class KafkaSource implements ISource<KafkaWorkUnitCalculatorResult, KafkaRunState>, Serializable {

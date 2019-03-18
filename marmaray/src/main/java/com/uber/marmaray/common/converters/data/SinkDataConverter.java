@@ -27,7 +27,7 @@ import org.apache.avro.Schema;
  * This class converts records from ({@link Schema}, {@link AvroPayload}) to (OS, OD).
  * @param <OS> output schema type
  * @param <OD> output data type
-        */
+ */
 public abstract class SinkDataConverter<OS, OD> extends AbstractDataConverter<Schema, OS, AvroPayload, OD> {
     private static final long serialVersionUID = 1L;
 

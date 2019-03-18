@@ -37,11 +37,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static com.uber.marmaray.common.metrics.DataFeedMetricNames.RESULT_FAILURE;
 import static com.uber.marmaray.common.metrics.DataFeedMetricNames.RESULT_SUCCESS;
 
-@Slf4j
 /**
  * {@link JobDagActions} are actions that are run based on success status.
  * This class is completely independent and NOT an implementation of the {@link IJobDagAction} interface
  */
+@Slf4j
 public final class JobDagActions {
     public static final String RESULT_METRIC = "result";
     public static final String TIME_METRIC = "execution_time";
