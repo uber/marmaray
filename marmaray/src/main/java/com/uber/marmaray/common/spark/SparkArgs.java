@@ -17,17 +17,16 @@
 
 package com.uber.marmaray.common.spark;
 
-import com.google.common.base.Optional;
+import com.uber.marmaray.common.configuration.Configuration;
 import java.util.List;
-import java.util.Map;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import org.apache.avro.Schema;
 
 @ToString
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class SparkArgs {
 
     /**
@@ -35,24 +34,29 @@ public class SparkArgs {
      */
     @Getter
     @NonNull
-    private final Optional<List<Schema>> avroSchemas;
+    private final List<Schema> avroSchemas;
     /**
      * User serialization classes to be added for kryo serialization
      */
     @Getter
     @NonNull
     private final List<Class> userSerializationClasses;
-    /**
-     * Other spark properties provided to override defaults
-     */
-    @Getter
-    @NonNull
-    private final Map<String, String> overrideSparkProperties;
 
     /**
-     * Hadoop Configuration to be added as a resource to SparkContext
+     * Configuration object
      */
     @Getter
     @NonNull
-    private final org.apache.hadoop.conf.Configuration hadoopConfiguration;
+    private final Configuration configuration;
+
+    /**
+     * Flag to indicate whether Hive support is needed for SparkSession.
+     * It is set to false by default. Use {@link #enableHiveSupport()} to turn it on.
+     */
+    @Getter
+    private boolean hiveSupportEnabled = false;
+
+    public void enableHiveSupport() {
+        this.hiveSupportEnabled = true;
+    }
 }

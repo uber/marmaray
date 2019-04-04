@@ -18,60 +18,23 @@ package com.uber.marmaray.utilities;
 
 import com.google.common.base.Optional;
 import com.google.common.collect.Sets;
-import com.uber.hoodie.common.model.HoodieKey;
-import com.uber.hoodie.common.model.HoodieRecord;
-import com.uber.marmaray.common.AvroPayload;
-import com.uber.marmaray.common.configuration.CassandraSinkConfiguration;
-import com.uber.marmaray.common.configuration.Configuration;
-import com.uber.marmaray.common.configuration.ErrorTableConfiguration;
-import com.uber.marmaray.common.configuration.HiveConfiguration;
-import com.uber.marmaray.common.configuration.HiveSourceConfiguration;
-import com.uber.marmaray.common.configuration.HoodieConfiguration;
-import com.uber.marmaray.common.configuration.KafkaConfiguration;
-import com.uber.marmaray.common.converters.converterresult.ConverterResult;
-import com.uber.marmaray.common.converters.data.AbstractDataConverter;
-import com.uber.marmaray.common.data.BinaryRawData;
-import com.uber.marmaray.common.data.ErrorData;
-import com.uber.marmaray.common.data.ForkData;
-import com.uber.marmaray.common.data.RDDWrapper;
-import com.uber.marmaray.common.data.RawData;
-import com.uber.marmaray.common.data.ValidData;
-import com.uber.marmaray.common.dataset.UtilRecord;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
-import com.uber.marmaray.common.forkoperator.ForkOperator;
-import com.uber.marmaray.common.metadata.AbstractValue;
-import com.uber.marmaray.common.schema.cassandra.CassandraDataField;
-import com.uber.marmaray.common.schema.cassandra.CassandraSchema;
-import com.uber.marmaray.common.schema.cassandra.CassandraSchemaField;
-import com.uber.marmaray.common.schema.cassandra.ClusterKey;
-import com.uber.marmaray.common.sinks.hoodie.HoodieSink;
-import com.uber.marmaray.common.sinks.hoodie.HoodieWriteStatus;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.avro.Schema;
-import org.apache.avro.util.Utf8;
-import org.apache.spark.SparkConf;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.spark.SparkContext;
 import org.apache.spark.SparkEnv;
-import org.apache.spark.serializer.KryoSerializer;
 import org.apache.spark.serializer.SerializerInstance;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.storage.RDDInfo;
-import org.hibernate.validator.constraints.NotEmpty;
-import scala.collection.JavaConverters;
+import scala.reflect.ClassManifestFactory;
 import scala.reflect.ClassTag;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
 /**
@@ -79,92 +42,14 @@ import java.util.Set;
  */
 @Slf4j
 public final class SparkUtil {
+    public static final ClassTag<GenericRecord> GENERIC_RECORD_CLASS_TAG =
+        ClassManifestFactory.fromClass(GenericRecord.class);
+    public static final ClassTag<Object> OBJECT_CLASS_TAG = ClassManifestFactory.fromClass(Object.class);
 
-    public static final String SPARK_PROPERTIES_KEY_PREFIX = "spark_properties.";
     private static ThreadLocal<SerializerInstance> serializerInstance = new ThreadLocal<>();
 
     private SparkUtil() {
         throw new JobRuntimeException("This utility class should never be instantiated");
-    }
-
-    /**
-     * @param avroSchemas avro schemas to be added to spark context for serialization
-     * @param userSerializationClasses serialization classes to be added for kryo serialization
-     * @param configuration config class to read and apply spark properties if present
-     */
-    public static SparkConf getSparkConf(@NotEmpty final String appName,
-        @NonNull final Optional<List<Schema>> avroSchemas,
-        @NonNull final List<Class> userSerializationClasses,
-        @NonNull final Configuration configuration) {
-        final SparkConf sparkConf = new SparkConf().setAppName(appName);
-
-        /**
-         * By custom registering classes the full class name of each object is not stored during serialization
-         * which reduces storage space.
-         *
-         * Note: We don't have a way to enforce new classes which need to be serialized are added to this list.
-         * We should think about adding a hook to ensure this list is current.
-         */
-        sparkConf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer");
-        final List<Class> serializableClasses = new LinkedList(Arrays.asList(
-            AbstractDataConverter.class,
-            AbstractValue.class,
-            AvroPayload.class,
-            ArrayList.class,
-            BinaryRawData.class,
-            CassandraDataField.class,
-            CassandraSchema.class,
-            CassandraSchemaField.class,
-            CassandraSinkConfiguration.class,
-            ClusterKey.class,
-            Configuration.class,
-            ConverterResult.class,
-            ErrorTableConfiguration.class,
-            ErrorData.class,
-            ForkData.class,
-            ForkOperator.class,
-            HiveConfiguration.class,
-            HiveSourceConfiguration.class,
-            HoodieConfiguration.class,
-            HoodieSink.class,
-            HoodieRecord.class,
-            HoodieKey.class,
-            HoodieWriteStatus.class,
-            KafkaConfiguration.class,
-            java.util.Optional.class,
-            Optional.class,
-            RawData.class,
-            RDDWrapper.class,
-            scala.collection.mutable.WrappedArray.ofRef.class,
-            Object[].class,
-            TimestampInfo.class,
-            UtilRecord.class,
-            ValidData.class,
-            HashMap.class,
-            Optional.absent().getClass(),
-            Utf8.class,
-            Class.class));
-        addClassesIfFound(serializableClasses,
-            Arrays.asList("com.google.common.base.Present",
-                "scala.reflect.ClassTag$$anon$1"));
-        serializableClasses.addAll(userSerializationClasses);
-        sparkConf.registerKryoClasses(serializableClasses.toArray(new Class[0]));
-
-        if (avroSchemas.isPresent()) {
-            sparkConf.registerAvroSchemas(
-                    JavaConverters.iterableAsScalaIterableConverter(avroSchemas.get())
-                    .asScala()
-                    .toSeq());
-        }
-
-        // override spark properties
-        final Map<String, String> sparkProps = configuration
-            .getPropertiesWithPrefix(SPARK_PROPERTIES_KEY_PREFIX, true);
-        for (Entry<String, String> entry : sparkProps.entrySet()) {
-            log.info("Setting spark key:val {} : {}", entry.getKey(), entry.getValue());
-            sparkConf.set(entry.getKey(), entry.getValue());
-        }
-        return sparkConf;
     }
 
     public static void addClassesIfFound(@NonNull final List<Class> serializableClasses,
@@ -181,7 +66,7 @@ public final class SparkUtil {
     public static Set<DataType> getSupportedDataTypes() {
         return Collections.unmodifiableSet(Sets.newHashSet(DataTypes.StringType, DataTypes.IntegerType,
                 DataTypes.LongType, DataTypes.BooleanType, DataTypes.DoubleType,
-                DataTypes.ShortType, DataTypes.FloatType));
+                DataTypes.ShortType, DataTypes.FloatType, DataTypes.TimestampType, DataTypes.BinaryType));
     }
 
     /**
@@ -190,18 +75,25 @@ public final class SparkUtil {
      */
     public static SerializerInstance getSerializerInstance() {
         if (serializerInstance.get() == null) {
-            serializerInstance.set(new KryoSerializer(SparkEnv.get().conf()).newInstance());
+            serializerInstance.set(SparkEnv.get().serializer().newInstance());
         }
         return serializerInstance.get();
     }
 
-    public static <T, K extends ClassTag<T>> T deserialize(@NonNull final byte[] serializedRecord,
+    public static <T, K extends ClassTag<T>> T deserialize(final byte[] serializedRecord,
         @NonNull final K classTag) {
+        if (serializedRecord == null) {
+            return null;
+        }
         return getSerializerInstance().deserialize(ByteBuffer.wrap(serializedRecord), classTag);
     }
 
-    public static <T, K extends ClassTag<T>> byte[] serialize(@NonNull final T record, @NonNull final K classTag) {
-        return getSerializerInstance().serialize(record, classTag).array();
+    public static <T, K extends ClassTag<T>> byte[] serialize(final T record, @NonNull final K classTag) {
+        if (record == null) {
+            return null;
+        }
+        final byte[] serializedData = getSerializerInstance().serialize(record, classTag).array();
+        return serializedData;
     }
 
     public static Optional<RDDInfo> getRddInfo(@NonNull final SparkContext sc, final int rddId) {
@@ -231,4 +123,5 @@ public final class SparkUtil {
         log.info(sparkWarning);
         return SparkSession.builder().getOrCreate();
     }
+
 }

@@ -16,6 +16,7 @@
  */
 package com.uber.marmaray.tools;
 
+import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.uber.marmaray.common.configuration.Configuration;
@@ -63,7 +64,7 @@ public class HDFSMetadataPrinter {
         log.info("Printing contents of metadata file: " + metadataFilePath);
 
         final Configuration conf = new Configuration();
-        final FileSystem fs = FSUtils.getFs(conf);
+        final FileSystem fs = FSUtils.getFs(conf, Optional.absent());
         try (final InputStream is = new BufferedInputStream(fs.open(new Path(metadataFilePath)))) {
             try (final ObjectInputStream input = new ObjectInputStream(is)) {
                 final Map<String, StringValue> metadataMap = HDFSMetadataManager.deserialize(input);

@@ -20,6 +20,7 @@ package com.uber.marmaray.common.configuration;
 import com.google.common.base.Preconditions;
 import com.uber.hoodie.config.HoodieIndexConfig;
 import com.uber.hoodie.index.HoodieIndex;
+import com.uber.hoodie.index.HoodieIndex.IndexType;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.utilities.StringTypes;
 import lombok.Getter;
@@ -48,6 +49,7 @@ public class HoodieIndexConfiguration extends HoodieConfiguration {
      */
     public static final String HOODIE_BLOOM_INDEX = "bloom";
     public static final String HOODIE_HBASE_INDEX = "hbase";
+    public static final String HOODIE_IN_MEMORY_INDEX = "in_memory";
     public static final String HOODIE_HBASE_INDEX_PREFIX = "hbase.";
     public static final String HOODIE_INDEX_TYPE = HOODIE_INDEX_PROPERTY_PREFIX + "type";
     public static final String HOODIE_INDEX_ZKNODE = "zknode.";
@@ -70,13 +72,13 @@ public class HoodieIndexConfiguration extends HoodieConfiguration {
      * Hoodie index QPS fraction
      */
     public static final String HOODIE_INDEX_QPS_FRACTION = HOODIE_INDEX_PROPERTY_PREFIX + "qps_fraction";
-    public static final double DEFAULT_HOODIE_INDEX_QPS_FRACTION = 0.125f;
+    public static final double DEFAULT_HOODIE_INDEX_QPS_FRACTION = 0.002f;
     /**
      * Hoodie index max QPS per region server
      */
     public static final String HOODIE_INDEX_MAX_QPS_PER_REGION_SERVER =
             HOODIE_INDEX_PROPERTY_PREFIX + "max_qps_per_region_server";
-    public static final int DEFAULT_HOODIE_INDEX_MAX_QPS_PER_REGION_SERVER = 400;
+    public static final int DEFAULT_HOODIE_INDEX_MAX_QPS_PER_REGION_SERVER = 32000;
     public static final String DEFAULT_VERSION = "";
 
     /**
@@ -102,6 +104,8 @@ public class HoodieIndexConfiguration extends HoodieConfiguration {
             return HoodieIndex.IndexType.BLOOM;
         } else if (HOODIE_HBASE_INDEX.equals(indexName.toLowerCase())) {
             return HoodieIndex.IndexType.HBASE;
+        } else if (HOODIE_IN_MEMORY_INDEX.equals(indexName.toLowerCase())) {
+            return IndexType.INMEMORY;
         } else {
             throw new IllegalStateException("Unsupported index type " + indexName);
         }
@@ -170,6 +174,11 @@ public class HoodieIndexConfiguration extends HoodieConfiguration {
             final String zkZnodeParent  = getZkZnodeParent();
             createHbaseIndexTableIfNotExists(topicName, quorum, port.toString(), zkZnodeParent,
                     version);
+            builder
+                    .hbaseIndexGetBatchSize(getHoodieIndexGetBatchSize())
+                    .hbaseTableName(getHoodieHbaseIndexTableName())
+                    .hbaseZkPort(port)
+                    .hbaseZkQuorum(quorum);
         }
 
         return  builder.build();

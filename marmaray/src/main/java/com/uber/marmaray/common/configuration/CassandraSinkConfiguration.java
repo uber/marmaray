@@ -21,6 +21,9 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
 import com.uber.marmaray.common.PartitionType;
 import com.uber.marmaray.common.exceptions.MissingPropertyException;
+import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.IMetricable;
+import com.uber.marmaray.common.metrics.JobMetrics;
 import com.uber.marmaray.common.schema.cassandra.ClusterKey;
 import com.uber.marmaray.utilities.ConfigUtil;
 import com.uber.marmaray.utilities.SchemaUtil;
@@ -30,6 +33,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.hadoop.ConfigHelper;
+import parquet.Preconditions;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -48,7 +52,7 @@ import java.util.stream.Collectors;
  * to sanitize the values again here.
  */
 @Slf4j
-public class CassandraSinkConfiguration implements Serializable {
+public class CassandraSinkConfiguration implements Serializable, IMetricable {
 
     public static final String CASSANDRA_PREFIX_ONLY = "cassandra.";
     public static final String CASS_COMMON_PREFIX = Configuration.MARMARAY_PREFIX + CASSANDRA_PREFIX_ONLY;
@@ -70,6 +74,7 @@ public class CassandraSinkConfiguration implements Serializable {
     public static final String SSL_STORAGE_PORT = CASS_COMMON_PREFIX + "ssl.storage.port";
 
     public static final String DISABLE_QUERY_UNS = CASS_COMMON_PREFIX + "disable_uns";
+    public static final String DISABLE_QUERY_LANGLEY = CASS_COMMON_PREFIX + "disable_langley";
 
     // *** End of Cassandra Configuration Settings ***1
     public static final String DEFAULT_OUTPUT_RPC_PORT = "9160";
@@ -83,13 +88,18 @@ public class CassandraSinkConfiguration implements Serializable {
     public static final String PARTITION_KEYS = CASS_COMMON_PREFIX + "partition_keys";
     public static final String CLUSTERING_KEYS = CASS_COMMON_PREFIX + "clustering_keys";
     public static final String PARTITION_TYPE = CASS_COMMON_PREFIX + "partition_type";
+    public static final String WRITTEN_TIME = CASS_COMMON_PREFIX + "written_time";
     public static final String USERNAME = CASS_COMMON_PREFIX + "username";
     public static final String PASSWORD = CASS_COMMON_PREFIX + "password";
     public static final String USE_CLIENT_SINK = CASS_COMMON_PREFIX + "use_client_sink";
+    public static final String SHOULD_SKIP_INVALID_ROWS = CASS_COMMON_PREFIX + "should_skip_invalid_rows";
 
     // optional field for customers to timestamp their data
     public static final String TIMESTAMP = CASS_COMMON_PREFIX + SchemaUtil.DISPERSAL_TIMESTAMP;
     public static final String TIMESTAMP_IS_LONG_TYPE = CASS_COMMON_PREFIX + "timestamp_is_long_type";
+    public static final String TIMESTAMP_FIELD_NAME = CASS_COMMON_PREFIX + "timestamp_field_name";
+    public static final String DEFAULT_DISPERSAL_TIMESTAMP_FIELD_NAME = "timestamp";
+    public static final boolean DEFAULT_TIMESTAMP_IS_LONG_TYPE = false;
 
     // File path containing datacenter info on each machine
     public static final String DC_PATH = "data_center_path";
@@ -97,7 +107,18 @@ public class CassandraSinkConfiguration implements Serializable {
     public static final String DATACENTER = CASS_COMMON_PREFIX + "datacenter";
 
     public static final String TIME_TO_LIVE = CASS_COMMON_PREFIX + "time_to_live";
-    private static final long DEFAULT_TIME_TO_LIVE = 0L;
+
+    // feature flags
+    public static final String ENABLE_IGNORE_HOSTS = CASS_COMMON_PREFIX + "enable_ignore_hosts";
+    public static final boolean DEFAULT_ENABLE_IGNORE_HOSTS = false;
+
+    public static final long DEFAULT_TIME_TO_LIVE = 0L;
+
+    public static final String MAX_BATCH_SIZE_MB = CASS_COMMON_PREFIX + "max_batch_size_mb";
+    public static final long DEFAULT_MAX_BATCH_SIZE_MB = -1;
+    public static final long DISABLE_BATCH = -1;
+    public static final String MIN_BATCH_DURATION_SECONDS = CASS_COMMON_PREFIX + "min_batch_duration_seconds";
+    public static final long DEFAULT_MIN_BATCH_DURATION_SECONDS = 0;
 
     private static final Splitter splitter = Splitter.on(StringTypes.COMMA);
 
@@ -128,7 +149,31 @@ public class CassandraSinkConfiguration implements Serializable {
     private final Optional<String> writeTimestamp;
 
     @Getter
+    private final String timestampFieldName;
+
+    @Getter
     private final boolean timestampIsLongType;
+
+    @Getter
+    private final boolean enableIgnoreHosts;
+
+    @Getter
+    private final long maxBatchSizeMb;
+
+    @Getter
+    private final long minBatchDurationSeconds;
+
+    @Getter
+    private Optional<DataFeedMetrics> dataFeedMetrics = Optional.absent();
+
+    @Getter
+    private final Optional<String> writtenTime;
+
+    public CassandraSinkConfiguration(@NonNull final Configuration conf,
+                                      @NonNull final DataFeedMetrics dataFeedMetrics) {
+        this(conf);
+        setDataFeedMetrics(dataFeedMetrics);
+    }
 
     public CassandraSinkConfiguration(@NonNull final Configuration conf) {
         this.conf = conf;
@@ -151,6 +196,10 @@ public class CassandraSinkConfiguration implements Serializable {
                 ? initClusterKeys(this.splitString(this.conf.getProperty(CLUSTERING_KEYS).get()))
                 : Collections.EMPTY_LIST;
 
+        this.writtenTime = this.conf.getProperty(WRITTEN_TIME).isPresent()
+                ? Optional.of(this.conf.getProperty(WRITTEN_TIME).get())
+                : Optional.absent();
+
         if (this.conf.getProperty(PARTITION_TYPE).isPresent()) {
             this.partitionType = PartitionType.valueOf(this.conf.getProperty(PARTITION_TYPE)
                     .get().trim().toUpperCase());
@@ -159,7 +208,26 @@ public class CassandraSinkConfiguration implements Serializable {
         }
 
         this.writeTimestamp = this.conf.getProperty(TIMESTAMP);
-        this.timestampIsLongType = this.conf.getBooleanProperty(TIMESTAMP_IS_LONG_TYPE, false);
+        this.timestampFieldName = this.conf.getProperty(TIMESTAMP_FIELD_NAME, DEFAULT_DISPERSAL_TIMESTAMP_FIELD_NAME);
+        this.timestampIsLongType = this.conf.getBooleanProperty(TIMESTAMP_IS_LONG_TYPE, DEFAULT_TIMESTAMP_IS_LONG_TYPE);
+        this.enableIgnoreHosts = this.conf.getBooleanProperty(ENABLE_IGNORE_HOSTS, DEFAULT_ENABLE_IGNORE_HOSTS);
+        this.maxBatchSizeMb = this.conf.getLongProperty(MAX_BATCH_SIZE_MB, DEFAULT_MAX_BATCH_SIZE_MB);
+        Preconditions.checkState(this.maxBatchSizeMb > 0 || this.maxBatchSizeMb == DISABLE_BATCH,
+                String.format("%s must greater than zero or %d", MAX_BATCH_SIZE_MB, DISABLE_BATCH));
+        this.minBatchDurationSeconds = this.conf.getLongProperty(MIN_BATCH_DURATION_SECONDS,
+                DEFAULT_MIN_BATCH_DURATION_SECONDS);
+        Preconditions.checkState(this.minBatchDurationSeconds >= 0,
+                String.format("%s must be non-negative", MIN_BATCH_DURATION_SECONDS));
+    }
+
+    @Override
+    public void setDataFeedMetrics(@NonNull final DataFeedMetrics dataFeedMetrics) {
+        this.dataFeedMetrics = Optional.of(dataFeedMetrics);
+    }
+
+    @Override
+    public void setJobMetrics(@NonNull final JobMetrics jobMetrics) {
+        // ignored
     }
 
     /**
@@ -214,6 +282,10 @@ public class CassandraSinkConfiguration implements Serializable {
         return this.getConf().getBooleanProperty(USE_CLIENT_SINK, false);
     }
 
+    public Boolean getShouldSkipInvalidRows() {
+        return this.getConf().getBooleanProperty(SHOULD_SKIP_INVALID_ROWS, false);
+    }
+
     public Optional<String> getUserName() {
         return this.getConf().getProperty(USERNAME);
     }
@@ -262,5 +334,9 @@ public class CassandraSinkConfiguration implements Serializable {
 
     private List<ClusterKey> initClusterKeys(final List<String> entries) {
         return entries.stream().map(entry -> ClusterKey.parse(entry)).collect(Collectors.toList());
+    }
+
+    public boolean isBatchEnabled() {
+        return getMaxBatchSizeMb() != DISABLE_BATCH;
     }
 }

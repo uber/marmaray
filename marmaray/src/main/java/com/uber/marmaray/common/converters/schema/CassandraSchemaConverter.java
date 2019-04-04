@@ -19,7 +19,6 @@ package com.uber.marmaray.common.converters.schema;
 import com.google.common.base.Optional;
 import com.uber.marmaray.common.schema.cassandra.CassandraSchema;
 import com.uber.marmaray.common.schema.cassandra.CassandraSchemaField;
-import com.uber.marmaray.utilities.SchemaUtil;
 import com.uber.marmaray.utilities.StringTypes;
 import com.uber.marmaray.utilities.TimestampInfo;
 import lombok.Getter;
@@ -85,9 +84,9 @@ public class CassandraSchemaConverter extends AbstractSchemaConverter<CassandraS
 
         if (this.tsInfo.hasTimestamp()) {
             if (this.tsInfo.isSaveAsLongType()) {
-                cs.addField(new CassandraSchemaField(SchemaUtil.DISPERSAL_TIMESTAMP, CassandraSchemaField.LONG_TYPE));
+                cs.addField(new CassandraSchemaField(tsInfo.getTimestampFieldName(), CassandraSchemaField.LONG_TYPE));
             } else {
-                cs.addField(new CassandraSchemaField(SchemaUtil.DISPERSAL_TIMESTAMP, CassandraSchemaField.STRING_TYPE));
+                cs.addField(new CassandraSchemaField(tsInfo.getTimestampFieldName(), CassandraSchemaField.STRING_TYPE));
             }
         }
 

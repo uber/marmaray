@@ -20,16 +20,17 @@ import com.google.common.base.Optional;
 import com.uber.marmaray.common.metadata.IMetadataManager;
 import com.uber.marmaray.common.metadata.StringValue;
 import com.uber.marmaray.utilities.MapUtil;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.Queue;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.validator.constraints.NotEmpty;
+
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Queue;
 
 /**
  * Convenience class for managing {@link SinkStat} for {@link #MAX_HISTORY_SIZE} runs.
@@ -39,7 +40,7 @@ import org.hibernate.validator.constraints.NotEmpty;
 @ToString
 public class SinkStatManager {
 
-    public static final int MAX_HISTORY_SIZE = 256;
+    public static final int MAX_HISTORY_SIZE = 8;
     public static final String METAKEY = "sink-stat-%s";
 
     @Getter
@@ -97,6 +98,7 @@ public class SinkStatManager {
                 numEntries += 1;
             }
         }
+        log.info("tableName:{}:avgRecordSize:{}:numEntries:{}", this.tableName, avgRecordSize, numEntries);
         return avgRecordSize / Math.max(numEntries, 1);
     }
 

@@ -19,17 +19,21 @@ package com.uber.marmaray.common.converters.data;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.converters.converterresult.ConverterResult;
+import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.JobMetrics;
 import com.uber.marmaray.common.schema.ISchemaService.ISchemaServiceReader;
 import com.uber.marmaray.utilities.ErrorExtractor;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
+
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.spark.api.java.function.Function;
-
 import java.util.Collections;
 import java.util.List;
 
+@Slf4j
 /**
  * {@link KafkaSourceDataConverter} extends {@link SourceDataConverter}
  *
@@ -43,7 +47,6 @@ public class KafkaSourceDataConverter extends SourceDataConverter<Schema, byte[]
     @NonNull
     @Getter
     private final List<String> fieldsToCache;
-
     /**
      *  List of {@Link Function<GenericRecord, GenericRecord>} to apply to the record between reading from kafka and
      *  transferring to the ISource
@@ -69,8 +72,29 @@ public class KafkaSourceDataConverter extends SourceDataConverter<Schema, byte[]
     }
 
     @Override
+    public void setDataFeedMetrics(final DataFeedMetrics dataFeedMetrics) {
+        //ignored
+    }
+
+    @Override
+    public void setJobMetrics(final JobMetrics jobMetrics) {
+        // ignored
+    }
+
+    @Override
     public List<ConverterResult<byte[], AvroPayload>> convert(@NonNull final byte[] data) throws Exception {
-        GenericRecord genericRecord = this.schemaServiceReader.read(data);
+        final GenericRecord genericRecord = this.schemaServiceReader.read(data);
+        return applyUpdateFunctions(genericRecord);
+    }
+
+    public List<ConverterResult<byte[], AvroPayload>> convert(@NonNull final GenericRecord genericRecord)
+        throws Exception {
+        return applyUpdateFunctions(genericRecord);
+    }
+
+    private List<ConverterResult<byte[], AvroPayload>> applyUpdateFunctions(@NonNull final GenericRecord record)
+        throws Exception {
+        GenericRecord genericRecord = record;
         for (Function<GenericRecord, GenericRecord> func : this.updateFunctions) {
             genericRecord = func.call(genericRecord);
         }

@@ -41,8 +41,10 @@ import org.hibernate.validator.constraints.NotEmpty;
 
 import java.io.FileNotFoundException;
 import java.io.Serializable;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -53,6 +55,7 @@ import java.util.stream.Collectors;
 import static com.uber.marmaray.common.configuration.KafkaConfiguration.KAFKA_BROKER_LIST;
 import static com.uber.marmaray.common.configuration.KafkaSourceConfiguration.KAFKA_CLUSTER_NAME;
 import static com.uber.marmaray.common.configuration.KafkaSourceConfiguration.KAFKA_START_DATE;
+import static com.uber.marmaray.common.configuration.KafkaSourceConfiguration.KAFKA_START_TIME;
 import static com.uber.marmaray.common.configuration.KafkaSourceConfiguration.KAFKA_TOPIC_NAME;
 
 @Slf4j
@@ -60,7 +63,8 @@ public class KafkaTestHelper {
 
     public static final String SCHEMA_SERVICE_TEST_LOCAL_PATH = "src/test/resources/schema-service";
     public static final String TEST_KAFKA_CLUSTER_NAME = "test-cluster";
-    public static final String TEST_KAFKA_START_DATE = "1970-01-01";
+    public static final String TEST_KAFKA_START_DATE =
+            new SimpleDateFormat(KafkaSourceConfiguration.KAFKA_START_DATE_FORMAT).format(new Date());
     private static final String STRING_VALUE_DEFAULT = "value";
     private static final Boolean BOOLEAN_VALUE_DEFAULT = true;
 
@@ -97,31 +101,36 @@ public class KafkaTestHelper {
                 }
             );
         }
+
         producer.send(ScalaUtil.toScalaSet(messageSet).toSeq());
         producer.close();
     }
 
-    public static List<List<byte[]>> generateMessages(@NonNull final List<Integer> messageCountList)
-        throws FileNotFoundException {
-        final Schema schema = getSchema("test_schema");
+    public static List<List<byte[]>> generateMessages(@NonNull final List<Integer> messageCountList,
+                                                      @NonNull final Schema schema,
+                                                      @NotEmpty final Integer schemaVersion) {
         final TestKafkaSchemaService schemaService = new TestKafkaSchemaService();
         final ISchemaService.ISchemaServiceWriter writer =
-            schemaService.getWriter("test_schema", 1);
+            schemaService.getWriter(schema.getName(), schemaVersion);
+        return writeMessages(messageCountList, schema, writer);
+    }
 
-
+    public static List<List<byte[]>> writeMessages(@NonNull final List<Integer> messageCountList,
+                           @NonNull final Schema schema,
+                           @NonNull final ISchemaService.ISchemaServiceWriter writer) {
         final List<List<byte[]>> ret = new ArrayList<>(messageCountList.size());
         messageCountList.stream().forEach(
-            messageCount -> {
-                ret.add(KafkaTestHelper.getTestData(schema, messageCount).stream().map(
-                        record -> {
-                            try {
-                                return writer.write(record);
-                            } catch (InvalidDataException e) {
-                                throw new RuntimeException(e);
+                messageCount -> {
+                    ret.add(KafkaTestHelper.getTestData(schema, messageCount).stream().map(
+                            record -> {
+                                try {
+                                    return writer.write(record);
+                                } catch (InvalidDataException e) {
+                                    throw new RuntimeException(e);
+                                }
                             }
-                        }
                     ).collect(Collectors.toList()));
-            }
+                }
         );
         return ret;
     }
@@ -173,7 +182,6 @@ public class KafkaTestHelper {
             log.warn("Found unknown type {}, returning null", type.toString());
             return null;
         }
-
     }
 
     public static void publishMessagesToKafkaTopics(@NonNull final KafkaTestUtils kafkaTestUtils,
@@ -182,8 +190,23 @@ public class KafkaTestHelper {
         Preconditions.checkArgument(!Strings.isNullOrEmpty(topicName));
         // Generate and publish messages to kafka.
         final List<Integer> partitionNumMessages = Arrays.asList(3, 5, 6, 7, 10, 25, 35, 45);
-        final List<List<byte[]>> messages = KafkaTestHelper.generateMessages(partitionNumMessages);
+        final List<List<byte[]>> messages = KafkaTestHelper.generateMessages(partitionNumMessages,
+                getSchema(topicName), 1);
         KafkaTestHelper.publishMessages(kafkaTestUtils, topicName, messages);
+    }
+
+    public static KafkaSourceConfiguration getKafkaSourceConfiguration(@NotEmpty final String topicName,
+                                                                       @NotEmpty final String brokerAddress,
+                                                                       final String startDate,
+                                                                       final String startTime) {
+        Preconditions.checkArgument(!Strings.isNullOrEmpty(topicName));
+        Preconditions.checkArgument(!Strings.isNullOrEmpty(brokerAddress));
+        final Configuration conf = new Configuration();
+        KafkaTestHelper.setMandatoryConf(conf,
+                Arrays.asList(
+                        KAFKA_BROKER_LIST, KAFKA_TOPIC_NAME, KAFKA_CLUSTER_NAME, KAFKA_START_DATE, KAFKA_START_TIME),
+                Arrays.asList(brokerAddress, topicName, TEST_KAFKA_CLUSTER_NAME, startDate, startTime));
+        return new KafkaSourceConfiguration(conf);
     }
 
     public static KafkaSourceConfiguration getKafkaSourceConfiguration(@NotEmpty final String topicName,
@@ -196,7 +219,7 @@ public class KafkaTestHelper {
         return new KafkaSourceConfiguration(conf);
     }
 
-        public static KafkaSourceConfiguration getKafkaSourceConfiguration(final String topicName,
+    public static KafkaSourceConfiguration getKafkaSourceConfiguration(final String topicName,
         final String brokerAddress) {
         return getKafkaSourceConfiguration(topicName, brokerAddress, TEST_KAFKA_START_DATE);
     }
@@ -235,7 +258,7 @@ public class KafkaTestHelper {
 
         private class TestKafkaSchemaServiceReader implements ISchemaServiceReader, Serializable {
             @Override public GenericRecord read(final byte[] buffer) throws InvalidDataException {
-                return new GenericRecordBuilder(getSchema("test")).build();
+                return new GenericRecordBuilder(getSchema("testTopic")).build();
             }
         }
     }

@@ -55,6 +55,10 @@ public class ForkOperator<DI> implements Serializable {
     private Optional<JavaRDD<ForkData<DI>>> groupRDD = Optional.absent();
     @Getter
     private final StorageLevel persistLevel;
+    @Getter
+    private long rddSize;
+    @Getter
+    private int numRddPartitions;
 
     public ForkOperator(@NonNull final JavaRDD<DI> inputRDD, @NonNull final ForkFunction<DI> forkFunction,
                         @NonNull final Configuration conf) {
@@ -77,10 +81,17 @@ public class ForkOperator<DI> implements Serializable {
         log.info("#processed records :{} name:{}", processedRecords, forkedData.name());
         if (rddInfo.isPresent()) {
             final long size = rddInfo.get().diskSize() + rddInfo.get().memSize();
+            setRddPartitionSize(size, rddInfo.get().numPartitions());
             log.info("rddInfo -> name:{} partitions:{} size:{}", forkedData.name(), rddInfo.get().numPartitions(),
                 size);
         }
         this.groupRDD = Optional.of(forkedData);
+    }
+
+    // set metrics here
+    private void setRddPartitionSize(final long rddSize, final int numPartitions) {
+        this.rddSize = rddSize;
+        this.numRddPartitions = numPartitions;
     }
 
     public long getCount(final int filterKey) {

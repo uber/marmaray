@@ -56,26 +56,26 @@ public class TestThreadPoolService {
         }
 
         // Test for numThreads values.
-        final AtomicInteger exeptionCount = new AtomicInteger(0);
+        final AtomicInteger exceptionCount = new AtomicInteger(0);
         IntStream.of(0, -1).forEach(
             numThreads -> {
                 try {
                     initService(numThreads, 1, 1);
                     Assert.fail();
                 } catch (IllegalStateException e) {
-                    exeptionCount.incrementAndGet();
+                    exceptionCount.incrementAndGet();
                 }
 
             }
         );
-        Assert.assertEquals(2, exeptionCount.get());
+        Assert.assertEquals(2, exceptionCount.get());
 
         final int numThreads = 4;
         final int numJobDagThreads = 2;
         final int numActionsThreads = 2;
         initService(numThreads, numJobDagThreads, numActionsThreads);
 
-        // re-initialization should fail.
+        // re-initialization should fail (singleton pattern).
         try {
             initService(numThreads, numJobDagThreads, numActionsThreads);
             Assert.fail();
@@ -85,7 +85,7 @@ public class TestThreadPoolService {
 
         // Test that caller always waits till spawned tasks have finished.
         final AtomicInteger runningCounter = new AtomicInteger(0);
-        final int attempts = 10;
+        final int attempts = 3;
         final Queue<Future<Integer>> branchResults = new LinkedList<>();
         final Callable<Integer> task =
             () -> {
@@ -93,7 +93,7 @@ public class TestThreadPoolService {
                 while (pending-- > 0) {
                     runningCounter.incrementAndGet();
                     try {
-                        Thread.sleep(100);
+                        Thread.sleep(1);
                     } catch (InterruptedException e) {
                         Assert.fail();
                     }
@@ -124,7 +124,7 @@ public class TestThreadPoolService {
             () -> {
                 counter.incrementAndGet();
                 try {
-                    Thread.sleep(200);
+                    Thread.sleep(1);
                 } catch (InterruptedException e) {
                     log.error("I was interrupted???");
                 }
@@ -144,7 +144,7 @@ public class TestThreadPoolService {
         Assert.assertEquals(jobDagCount + actionsCount, results.size());
         // make sure they all ran
         Assert.assertEquals(jobDagCount + actionsCount, counter.get());
-        exeptionCount.set(0);
+        exceptionCount.set(0);
         while (!results.isEmpty()) {
             final Future<Integer> status = results.poll();
             try {
@@ -153,13 +153,13 @@ public class TestThreadPoolService {
             } catch (InterruptedException e) {
                 Assert.fail();
             } catch (ExecutionException e) {
-                exeptionCount.incrementAndGet();
+                exceptionCount.incrementAndGet();
                 // expected.
                 Assert.assertEquals(ArithmeticException.class, e.getCause().getClass());
             }
         }
         // make sure they all failed
-        Assert.assertEquals(jobDagCount + actionsCount, exeptionCount.get());
+        Assert.assertEquals(jobDagCount + actionsCount, exceptionCount.get());
     }
 
     @Test

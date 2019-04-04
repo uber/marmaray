@@ -16,31 +16,29 @@
  */
 package com.uber.marmaray.common.configuration;
 
-import com.google.common.base.Optional;
-import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
-
-import java.io.InputStream;
-import java.io.Serializable;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Optional;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.hibernate.validator.constraints.NotEmpty;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 
 /**
  * {@link Configuration} will be instantiated from a YAML based file
@@ -85,7 +83,12 @@ public class Configuration implements Serializable {
         this.props.putAll(conf.props);
     }
 
-    public void loadYamlFile(@NonNull final File yamlFile,
+    @VisibleForTesting
+    public Configuration(@NonNull final Properties properties) {
+        this.props.putAll(properties);
+    }
+
+    private void loadYamlFile(@NonNull final File yamlFile,
         final Optional<String> scope) {
         try {
             final FileSystem localFs = FileSystem.getLocal(
@@ -108,7 +111,7 @@ public class Configuration implements Serializable {
             final JsonNode scopeOverriddenJsonNode = handleScopeOverriding(scope, jsonNode);
             parseConfigJson(scopeOverriddenJsonNode, "");
         } catch (IOException e) {
-            final String errorMsg = "Error loading yaml file ";
+            final String errorMsg = "Error loading config from stream";
             log.error(errorMsg, e);
             throw new JobRuntimeException(errorMsg, e);
         }
@@ -156,6 +159,12 @@ public class Configuration implements Serializable {
 
                 }
             });
+        return properties;
+    }
+
+    public Properties getProperties() {
+        final Properties properties = new Properties();
+        this.props.forEach((k, v) -> properties.put(k, v));
         return properties;
     }
 

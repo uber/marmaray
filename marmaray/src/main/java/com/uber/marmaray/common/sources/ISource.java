@@ -19,6 +19,8 @@ package com.uber.marmaray.common.sources;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.metrics.IMetricable;
 import com.uber.marmaray.common.sources.IWorkUnitCalculator.IWorkUnitCalculatorResult;
+import com.uber.marmaray.common.status.BaseStatus;
+import com.uber.marmaray.common.status.IStatus;
 import org.apache.spark.api.java.JavaRDD;
 
 /**
@@ -31,4 +33,8 @@ public interface ISource<K extends IWorkUnitCalculatorResult,
      * It reads and returns the data.
      */
     JavaRDD<AvroPayload> getData(K k);
+
+    default IStatus getStatus() {
+        return new BaseStatus();
+    }
 }

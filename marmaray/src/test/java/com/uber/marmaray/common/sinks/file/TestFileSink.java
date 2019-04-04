@@ -20,13 +20,14 @@ package com.uber.marmaray.common.sinks.file;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.configuration.FileSinkConfiguration;
-import com.uber.marmaray.common.converters.data.FileSinkDataConverter;
+import com.uber.marmaray.common.converters.data.FileSinkDataCSVConverter;
 import com.uber.marmaray.common.util.AvroPayloadUtil;
 import com.uber.marmaray.utilities.ErrorExtractor;
 import com.uber.marmaray.utilities.StringTypes;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.fs.Path;
+import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.junit.After;
 import org.junit.Before;
@@ -56,7 +57,7 @@ public class TestFileSink extends FileSinkTestUtil{
     private JavaRDD<String> convertedData2;
     private JavaRDD<AvroPayload> testData2;
     private Configuration conf;
-    private FileSinkDataConverter converter;
+    private FileSinkDataCSVConverter converter;
     private FileSink fileSink;
 
     @Before
@@ -69,11 +70,14 @@ public class TestFileSink extends FileSinkTestUtil{
                 NUM_RECORD2,
                 StringTypes.EMPTY);
         this.conf = initConfig(pathPrefix, PATH1, COMMA_SEPARATOR, TIMESTAMP1, SOURCE_SUB_PATH1, VERSION);
-        this.converter = new FileSinkDataConverter(conf, new ErrorExtractor());
+        this.converter = new FileSinkDataCSVConverter(conf, new ErrorExtractor());
         final FileSinkConfiguration fileConf = new FileSinkConfiguration(conf);
         this.fileSink = spy(new HdfsFileSink(fileConf, converter));
-        this.convertedData1 = this.converter.convertAll(this.testData1);
-        this.convertedData2 = this.converter.convertAll(this.testData2);
+
+        final JavaPairRDD<String, String> tmpData1 = this.converter.convertAll(this.testData1);
+        this.convertedData1 = tmpData1.map(message -> message._2());
+        final JavaPairRDD<String, String> tmpData2 = this.converter.convertAll(this.testData2);
+        this.convertedData2 = tmpData2.map(message -> message._2());
     }
 
     @After
@@ -90,15 +94,15 @@ public class TestFileSink extends FileSinkTestUtil{
 
     @Test
     public void testGetRddSizeNoMoreThanSampleRow() {
-            final double rddSize = fileSink.getRddSizeInMegaByte(convertedData1);
-            final long sampleSize = fileSink.getSampleSizeInBytes(convertedData1);
+            final double rddSize = fileSink.getRddSizeInMegaByte(this.convertedData1);
+            final long sampleSize = fileSink.getSampleSizeInBytes(this.convertedData1);
             final double sampleSizeInMB = (double) sampleSize / FileUtils.ONE_MB;
             assertEquals(rddSize, sampleSizeInMB, 0.1);
     }
 
     @Test
     public void testGetRddSizeMoreThanSampleRow() {
-        final double rddSize = fileSink.getRddSizeInMegaByte(convertedData2);
+        final double rddSize = fileSink.getRddSizeInMegaByte(this.convertedData2);
         verify(this.fileSink, times(1)).getSampleSizeInBytes(Matchers.any(JavaRDD.class));
         final long sampleSize = fileSink.getSampleSizeInBytes(convertedData2);
         final double sampleSizeInMB = (double) sampleSize / FileUtils.ONE_MB;
@@ -109,7 +113,7 @@ public class TestFileSink extends FileSinkTestUtil{
 
     @Test
     public void testGetSampleSizeInBytes() {
-        final long sampleSize = fileSink.getSampleSizeInBytes(convertedData1);
+        final long sampleSize = fileSink.getSampleSizeInBytes(this.convertedData1);
         assertEquals(EXPECTED_SAMPLE_SIZE, sampleSize);
     }
 

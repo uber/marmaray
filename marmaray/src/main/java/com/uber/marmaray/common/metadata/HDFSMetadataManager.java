@@ -26,6 +26,11 @@ import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.exceptions.MetadataException;
+import com.uber.marmaray.common.metrics.DataFeedMetricNames;
+import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.ErrorCauseTagNames;
+import com.uber.marmaray.common.metrics.JobMetrics;
+import com.uber.marmaray.common.metrics.ModuleTagNames;
 import com.uber.marmaray.utilities.FSUtils;
 import lombok.Getter;
 import lombok.NonNull;
@@ -68,13 +73,16 @@ public class HDFSMetadataManager implements IMetadataManager<StringValue> {
     // Using a thread-safe HashMap doesn't really provide any protection against jobs from other or same
     // customers running jobs against the same metadata directory.  We eventually want to take locks on
     // a directory (possivly via ZooKeeper) so only one job can operate at a time per job name.
-    private final Map<String, StringValue> metadataMap;
+    private Optional<Map<String, StringValue>> metadataMap = Optional.absent();
 
     @NonNull
     private final FileSystem fileSystem;
 
     @NotEmpty @Getter
     private final String baseMetadataPath;
+
+    @Getter
+    private Optional<DataFeedMetrics> dataFeedMetrics = Optional.absent();
 
     /*
      *  If it is able to update {@link #shouldSaveChanges} from true to false; then only it will create new
@@ -89,29 +97,54 @@ public class HDFSMetadataManager implements IMetadataManager<StringValue> {
         this.fileSystem = fs;
         this.baseMetadataPath = baseMetadataPath;
         this.shouldSaveChanges = shouldSaveChanges;
-        this.metadataMap = loadMetadata();
+        if (!fs.exists(new Path(this.baseMetadataPath))) {
+            // Ensuring that directories are created in case they are not found.
+            fs.mkdirs(new Path(this.baseMetadataPath));
+        }
+    }
+
+    private Map<String, StringValue> getMetadataMap() {
+        if (!this.metadataMap.isPresent()) {
+            try {
+                this.metadataMap = Optional.of(loadMetadata());
+            } catch (IOException e) {
+                log.error("Failed in loading HDFS based metadata manager", e);
+                throw new JobRuntimeException(e);
+            }
+        }
+        return this.metadataMap.get();
+    }
+
+    @Override
+    public void setDataFeedMetrics(@NonNull final DataFeedMetrics dataFeedMetrics) {
+        this.dataFeedMetrics = Optional.of(dataFeedMetrics);
+    }
+
+    @Override
+    public void setJobMetrics(@NonNull final JobMetrics jobMetrics) {
+        // ignored
     }
 
     @Override
     public void set(@NotEmpty final String key, @NonNull final StringValue value) throws MetadataException {
         Preconditions.checkArgument(!Strings.isNullOrEmpty(key));
-        this.metadataMap.put(key, value);
+        getMetadataMap().put(key, value);
     }
 
     @Override
     public Optional<StringValue> remove(@NotEmpty final String key) {
-        return Optional.fromNullable(this.metadataMap.remove(key));
+        return Optional.fromNullable(getMetadataMap().remove(key));
     }
 
     @Override
     public Optional<StringValue> get(@NotEmpty final String key) throws MetadataException {
         Preconditions.checkArgument(!Strings.isNullOrEmpty(key));
-        return this.metadataMap.containsKey(key) ? Optional.of(this.metadataMap.get(key)) : Optional.absent();
+        return getMetadataMap().containsKey(key) ? Optional.of(getMetadataMap().get(key)) : Optional.absent();
     }
 
     @Override
     public Set<String> getAllKeys() {
-        return this.metadataMap.keySet();
+        return getMetadataMap().keySet();
     }
 
     /**
@@ -161,6 +194,11 @@ public class HDFSMetadataManager implements IMetadataManager<StringValue> {
                 }
             }
         } catch (final IOException e) {
+            if (this.dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                        DataFeedMetricNames.getErrorModuleCauseTags(
+                                ModuleTagNames.METADATA_MANAGER, ErrorCauseTagNames.SAVE_METADATA));
+            }
             final String errMsg =
                 String.format("IOException occurred while pruning metadata files.  Message: %s", e.getMessage());
             log.warn(errMsg);
@@ -183,6 +221,11 @@ public class HDFSMetadataManager implements IMetadataManager<StringValue> {
             log.info("Saving metadata to: {}", fileLocation);
             this.fileSystem.rename(new Path(tmpFileLocation), new Path(fileLocation));
         } catch (final IOException e) {
+            if (this.dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                        DataFeedMetricNames.getErrorModuleCauseTags(
+                                ModuleTagNames.METADATA_MANAGER, ErrorCauseTagNames.SAVE_METADATA));
+            }
             final String errMsg =
                 String.format("IOException occurred while saving changes.  Message: %s", e.getMessage());
             throw new MetadataException(errMsg, e);
@@ -242,8 +285,8 @@ public class HDFSMetadataManager implements IMetadataManager<StringValue> {
 
     private void serialize(final ObjectOutputStream out) throws IOException {
         out.writeInt(SERIALIZATION_VERSION);
-        out.writeInt(this.metadataMap.size());
-        for (final Map.Entry<String, StringValue> entry : this.metadataMap.entrySet())  {
+        out.writeInt(getMetadataMap().size());
+        for (final Map.Entry<String, StringValue> entry : getMetadataMap().entrySet())  {
             log.info("Serializing key: {} and value: {}", entry.getKey(), entry.getValue().getValue());
             out.writeUTF(entry.getKey());
             out.writeUTF(entry.getValue().getValue());

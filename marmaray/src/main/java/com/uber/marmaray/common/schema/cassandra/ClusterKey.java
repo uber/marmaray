@@ -45,7 +45,7 @@ public class ClusterKey implements Serializable {
     }
 
     public String toString() {
-        return name + StringTypes.SPACE + order;
+        return this.name + StringTypes.SPACE + this.order;
     }
 
     /*
@@ -60,6 +60,10 @@ public class ClusterKey implements Serializable {
         } else {
             return new ClusterKey(tokens.get(0), Order.valueOf(tokens.get(1)));
         }
+    }
+
+    public boolean isClusterKeyColumn(@NotEmpty final String name) {
+        return this.name.equals(name);
     }
 }
 

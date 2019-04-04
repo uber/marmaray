@@ -66,6 +66,7 @@ public class TestHoodieIndexConfiguration {
         setHoodieTableProperty(conf, "index.hbase.zknode.path", "/path/to/zk");
         setHoodieTableProperty(conf, "index.hbase_index_table", "myHbaseTable");
         Assert.assertEquals("HBASE", getHoodiePropertyFromConfig(conf, "hoodie.index.type"));
+        Assert.assertEquals("myHbaseTable", getHoodiePropertyFromConfig(conf, "hoodie.index.hbase.table"));
 
     }
 

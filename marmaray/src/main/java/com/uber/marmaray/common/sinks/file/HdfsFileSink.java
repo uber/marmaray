@@ -23,6 +23,9 @@ import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.converters.data.FileSinkDataConverter;
 import com.uber.marmaray.common.configuration.FileSinkConfiguration;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
+import com.uber.marmaray.common.metrics.DataFeedMetricNames;
+import com.uber.marmaray.common.metrics.ErrorCauseTagNames;
+import com.uber.marmaray.common.metrics.ModuleTagNames;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.fs.FileStatus;
@@ -65,6 +68,11 @@ public class HdfsFileSink extends FileSink {
                     fileSystem.delete(dataFolder, true);
                 }
             } catch (IOException e) {
+                if (dataFeedMetrics.isPresent()) {
+                    this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                            DataFeedMetricNames.getErrorModuleCauseTags(
+                                    ModuleTagNames.SINK, ErrorCauseTagNames.FS_UTIL));
+                }
                 log.error("Exception: {}", e.getMessage());
                 throw new JobRuntimeException(e);
             }
@@ -93,6 +101,11 @@ public class HdfsFileSink extends FileSink {
             fileSystem.delete(new Path(this.conf.getFullPath()), true);
             log.info("Finished write files to hdfs path: {}", this.conf.getFullPath());
         } catch (IOException e) {
+            if (dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                        DataFeedMetricNames.getErrorModuleCauseTags(
+                                ModuleTagNames.SINK, ErrorCauseTagNames.WRITE_FILE));
+            }
             log.error("Exception: {}", e);
             throw new JobRuntimeException(e);
         }

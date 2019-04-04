@@ -26,7 +26,6 @@ public class TestHiveSourceConfiguration {
 
     private static final String JOB_NAME = "jobFoo";
     private static final String DEFAULT_DATA_PATH = "dataPath";
-    private static final String DEFAULT_METADATA_PATH = "metadataPath";
 
 
     @Test(expected = MissingPropertyException.class)
@@ -51,7 +50,6 @@ public class TestHiveSourceConfiguration {
         final HiveSourceConfiguration hiveConfig = new HiveSourceConfiguration(config);
         Assert.assertEquals(JOB_NAME, hiveConfig.getJobName());
         Assert.assertEquals(DEFAULT_DATA_PATH, hiveConfig.getDataPath());
-        Assert.assertEquals(DEFAULT_METADATA_PATH, hiveConfig.getBaseMetadataPath());
         Assert.assertTrue(hiveConfig.shouldSaveCheckpoint());
     }
 
@@ -59,7 +57,6 @@ public class TestHiveSourceConfiguration {
         final Configuration config = new Configuration();
         config.setProperty(HiveSourceConfiguration.JOB_NAME, JOB_NAME);
         config.setProperty(HiveSourceConfiguration.HIVE_DATA_PATH, DEFAULT_DATA_PATH);
-        config.setProperty(HiveSourceConfiguration.BASE_METADATA_PATH, DEFAULT_METADATA_PATH);
         return config;
     }
 }

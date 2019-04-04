@@ -19,6 +19,7 @@ package com.uber.marmaray.common.util;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.utilities.FSUtils;
 import com.uber.marmaray.utilities.SchemaUtil;
+import com.google.common.base.Optional;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.spark.sql.types.StructField;
@@ -31,19 +32,29 @@ import java.io.IOException;
 
 public class TestSchemaUtil {
 
-    private String parquetDataPath;
     private FileSystem fs;
 
     @Before
     public void setupTest() throws IOException {
-        this.parquetDataPath = FileHelperUtil.getResourcePath(getClass(),
-                new Path("testData", "testPartition").toString());
-        this.fs = FSUtils.getFs(new Configuration());
+        this.fs = FSUtils.getFs(new Configuration(), Optional.absent());
     }
 
     @Test
     public void testGenerateSchemaFromParquet() throws IOException {
-        final StructType structType = SchemaUtil.generateSchemaFromParquet(fs, this.parquetDataPath);
+        final String parquetDataPath = FileHelperUtil.getResourcePath(getClass(),
+            new Path("testData", "testPartition").toString());
+        final StructType structType = SchemaUtil.generateSchemaFromParquet(this.fs,
+                parquetDataPath, Optional.absent());
+        Assert.assertEquals(2, structType.fields().length);
+        validate(structType);
+    }
+
+    @Test
+    public void testMultiPartitionSchema() throws Exception {
+        final String parquetDataPath = FileHelperUtil.getResourcePath(getClass(),
+            new Path("testData", "testPartition1").toString());
+        final StructType structType = SchemaUtil.generateSchemaFromParquet(this.fs,
+                parquetDataPath, Optional.absent());
         Assert.assertEquals(2, structType.fields().length);
         validate(structType);
     }

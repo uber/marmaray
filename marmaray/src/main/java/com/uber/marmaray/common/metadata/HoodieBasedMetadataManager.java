@@ -17,12 +17,6 @@
 package com.uber.marmaray.common.metadata;
 
 import com.google.common.base.Optional;
-import com.uber.marmaray.common.configuration.HadoopConfiguration;
-import com.uber.marmaray.common.configuration.HoodieConfiguration;
-import com.uber.marmaray.common.exceptions.JobRuntimeException;
-import com.uber.marmaray.utilities.FSUtils;
-import com.uber.marmaray.utilities.HoodieUtil;
-import com.uber.marmaray.utilities.MapUtil;
 import com.uber.hoodie.HoodieWriteClient;
 import com.uber.hoodie.WriteStatus;
 import com.uber.hoodie.common.model.HoodieAvroPayload;
@@ -30,6 +24,22 @@ import com.uber.hoodie.common.model.HoodieCommitMetadata;
 import com.uber.hoodie.common.table.HoodieTableMetaClient;
 import com.uber.hoodie.common.table.timeline.HoodieActiveTimeline;
 import com.uber.hoodie.common.table.timeline.HoodieInstant;
+import com.uber.marmaray.common.configuration.HadoopConfiguration;
+import com.uber.marmaray.common.configuration.HoodieConfiguration;
+import com.uber.marmaray.common.exceptions.JobRuntimeException;
+import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.JobMetrics;
+import com.uber.marmaray.utilities.FSUtils;
+import com.uber.marmaray.utilities.HoodieUtil;
+import com.uber.marmaray.utilities.MapUtil;
+import lombok.Getter;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.parquet.Strings;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.hibernate.validator.constraints.NotEmpty;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,15 +49,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import lombok.Getter;
-import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.parquet.Strings;
-import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.hibernate.validator.constraints.NotEmpty;
 
 /**
  * It should be used if metadata information needs to be stored in hoodie. It uses hoodie commit file to store
@@ -62,7 +63,7 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
     private final HoodieConfiguration hoodieConf;
     private final AtomicBoolean saveChanges;
     private transient Optional<JavaSparkContext> jsc = Optional.absent();
-    private final Map<String, String> metadataMap;
+    private Optional<Map<String, String>> metadataMap = Optional.absent();
 
     /**
      * @param shouldSaveChanges {@link AtomicBoolean} which {@link #saveChanges} will use to determine if
@@ -75,7 +76,23 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
         this.hoodieConf = hoodieConf;
         this.saveChanges = shouldSaveChanges;
         this.jsc = Optional.of(jsc);
-        this.metadataMap = readMetadataInfo(this.hoodieConf);
+    }
+
+    @Override
+    public void setDataFeedMetrics(@NonNull final DataFeedMetrics dataFeedMetrics) {
+        // ignored
+    }
+
+    @Override
+    public void setJobMetrics(@NonNull final JobMetrics jobMetrics) {
+        // ignored
+    }
+
+    private Map<String, String> getMetadataMap() {
+        if (!this.metadataMap.isPresent()) {
+            this.metadataMap = Optional.of(readMetadataInfo(this.hoodieConf));
+        }
+        return this.metadataMap.get();
     }
 
     /**
@@ -86,7 +103,7 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
             throw new JobRuntimeException(
                 String.format("Metadata manager changes are already saved.key:%s:value%s", key, value));
         }
-        this.metadataMap.put(key, value.getValue());
+        getMetadataMap().put(key, value.getValue());
     }
 
     /**
@@ -97,7 +114,7 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
      */
     @Override
     public Optional<StringValue> remove(@NotEmpty final String key) {
-        final String val = this.metadataMap.remove(key);
+        final String val = getMetadataMap().remove(key);
         return val == null ? Optional.absent() : Optional.of(new StringValue(val));
     }
 
@@ -105,7 +122,7 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
      * Returns given metadata key.
      */
     public Optional<StringValue> get(@NotEmpty final String key) {
-        final String val = this.metadataMap.get(key);
+        final String val = getMetadataMap().get(key);
         return val == null ? Optional.absent() : Optional.of(new StringValue(val));
     }
 
@@ -114,14 +131,14 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
      */
     @Override
     public Set<String> getAllKeys() {
-        return this.metadataMap.keySet();
+        return getMetadataMap().keySet();
     }
 
     /**
      * Returns immutable map of metadata key-value pairs.
      */
     public Map<String, String> getAll() {
-        return Collections.unmodifiableMap(this.metadataMap);
+        return Collections.unmodifiableMap(getMetadataMap());
     }
 
     public AtomicBoolean shouldSaveChanges() {
@@ -158,7 +175,7 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
      */
     public HashMap<String, String> getMetadataInfo() {
         final HashMap<String, String> map = new HashMap<>();
-        map.put(HOODIE_METADATA_KEY, MapUtil.serializeMap(this.metadataMap));
+        map.put(HOODIE_METADATA_KEY, MapUtil.serializeMap(getMetadataMap()));
         return map;
     }
 
@@ -169,7 +186,7 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
     private static Map<String, String> readMetadataInfo(
             @NonNull final HoodieConfiguration hoodieConf) {
         try {
-            final FileSystem fs = FSUtils.getFs(hoodieConf.getConf());
+            final FileSystem fs = FSUtils.getFs(hoodieConf.getConf(), Optional.of(hoodieConf.getBasePath()));
             HoodieUtil.initHoodieDataset(fs, hoodieConf);
             final HoodieTableMetaClient hoodieTableMetaClient =
                 new HoodieTableMetaClient(new HadoopConfiguration(hoodieConf.getConf()).getHadoopConf(),

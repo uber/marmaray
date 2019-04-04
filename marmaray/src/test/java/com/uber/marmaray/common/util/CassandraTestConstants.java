@@ -16,6 +16,9 @@
  */
 package com.uber.marmaray.common.util;
 
+import com.uber.marmaray.common.configuration.CassandraSinkConfiguration;
+import com.uber.marmaray.common.configuration.Configuration;
+
 public class CassandraTestConstants {
     public static final String KEY_SPACE = "marmaray";
     public static final String TABLE = "crossfit_gyms";
@@ -24,4 +27,11 @@ public class CassandraTestConstants {
     public static final String STRING_FIELD = "string_field";
     public static final String BOOLEAN_FIELD = "boolean_field";
     public static final int CASSANDRA_PORT = 9142;
+    public static final Configuration CONFIGURATION = new Configuration();
+    static {
+        CONFIGURATION.setProperty(CassandraSinkConfiguration.KEYSPACE, KEY_SPACE);
+        CONFIGURATION.setProperty(CassandraSinkConfiguration.TABLE_NAME, TABLE);
+        CONFIGURATION.setProperty(CassandraSinkConfiguration.CLUSTER_NAME, "test-cluster");
+        CONFIGURATION.setProperty(CassandraSinkConfiguration.PARTITION_KEYS, "key_name1,key_name2");
+    }
 }

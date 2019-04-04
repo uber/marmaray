@@ -17,7 +17,15 @@
 
 package com.uber.marmaray.utilities;
 
+import com.google.common.base.Optional;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
+import jodd.io.StringInputStream;
+import org.apache.commons.collections.map.SingletonMap;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
@@ -29,16 +37,24 @@ import org.mockito.stubbing.Answer;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyCollection;
+import static org.mockito.Matchers.anyLong;
 import static org.powermock.api.mockito.PowerMockito.mock;
 import static org.powermock.api.mockito.PowerMockito.mockStatic;
 import static org.powermock.api.mockito.PowerMockito.when;
@@ -54,8 +70,8 @@ public class TestKafkaUtil {
         final Set<TopicPartition> topicPartitions = new HashSet<TopicPartition>();
         final List<PartitionInfo> partitionInfos = new LinkedList<>();
         final int numPartitions = 5;
-        final int fetchTimeoutSec = 10;
-        final int fetchRetryCnt = 3;
+        final int fetchTimeoutSec = 1;
+        final int fetchRetryCnt = 2;
         when(KafkaUtil.getFetchOffsetRetryCnt()).thenReturn(fetchRetryCnt);
         when(KafkaUtil.getFetchOffsetTimeoutSec()).thenReturn(fetchTimeoutSec);
 
@@ -73,15 +89,15 @@ public class TestKafkaUtil {
             Matchers.anyString(), Matchers.any(Set.class))).thenCallRealMethod();
         when(kafkaConsumer.position(Matchers.any(TopicPartition.class))).thenAnswer(
             (Answer<Long>) invocationOnMock -> {
-                TopicPartition tp = invocationOnMock.getArgumentAt(0, TopicPartition.class);
+                final TopicPartition tp = invocationOnMock.getArgumentAt(0, TopicPartition.class);
                 if (!attempts.containsKey(tp.partition())) {
                     attempts.put(tp.partition(), new AtomicInteger(1));
                 } else {
                     attempts.get(tp.partition()).incrementAndGet();
                 }
                 if (tp.partition() == numPartitions - 1) {
-                    // just want to ensure that we timeout this request.
-                    Thread.sleep(TimeUnit.SECONDS.toMillis(TimeUnit.SECONDS.toMillis(10 * fetchTimeoutSec)));
+                    // ensure timeout occurs by adding 10 additional ms to max.
+                    Thread.sleep(TimeUnit.SECONDS.toMillis(fetchTimeoutSec) + 10);
                 }
                 return tp.partition() * 2L;
             }
@@ -99,4 +115,6 @@ public class TestKafkaUtil {
             }
         );
     }
+
+
 }

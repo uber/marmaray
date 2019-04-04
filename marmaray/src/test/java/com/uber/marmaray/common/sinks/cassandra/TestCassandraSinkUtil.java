@@ -51,6 +51,8 @@ import static com.uber.marmaray.common.util.CassandraTestConstants.TABLE;
 public class TestCassandraSinkUtil extends AbstractSparkTest {
 
     protected static final String TEST_TIMESTAMP = "10000";
+    protected static final String INT_FIELD = "int_field";
+    protected static final String STRING_FIELD = "string_field";
 
     protected CassandraSinkConfiguration initializeConfiguration(boolean excludeField,
                                                                boolean hasTimestampField) {
@@ -61,8 +63,8 @@ public class TestCassandraSinkUtil extends AbstractSparkTest {
         conf.setProperty(CassandraSinkConfiguration.TABLE_NAME, CassandraTestConstants.TABLE);
         conf.setProperty(CassandraSinkConfiguration.KEYSPACE, CassandraTestConstants.KEY_SPACE);
         conf.setProperty(CassandraSinkConfiguration.CLUSTER_NAME, "testCluster");
-        conf.setProperty(CassandraSinkConfiguration.PARTITION_KEYS, "int_field");
-        conf.setProperty(CassandraSinkConfiguration.CLUSTERING_KEYS, "string_field");
+        conf.setProperty(CassandraSinkConfiguration.PARTITION_KEYS, INT_FIELD);
+        conf.setProperty(CassandraSinkConfiguration.CLUSTERING_KEYS, STRING_FIELD);
 
         // we always exclude the boolean field for now, can modify this in future to exclude a specific field
         if (!excludeField) {
@@ -98,7 +100,7 @@ public class TestCassandraSinkUtil extends AbstractSparkTest {
                 }
 
                 if (checkTimestampField) {
-                    final Object timestampObj = row.getObject(SchemaUtil.DISPERSAL_TIMESTAMP);
+                    final Object timestampObj = row.getObject(CassandraSinkConfiguration.DEFAULT_DISPERSAL_TIMESTAMP_FIELD_NAME);
 
                     if (timestampObj instanceof Long) {
                         Assert.assertEquals(Long.parseLong(TEST_TIMESTAMP), timestampObj);

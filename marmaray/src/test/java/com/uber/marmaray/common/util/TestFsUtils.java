@@ -18,6 +18,7 @@ package com.uber.marmaray.common.util;
 
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.utilities.FSUtils;
+import com.google.common.base.Optional;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -34,7 +35,7 @@ public class TestFsUtils {
     @Before
     public void initClass() throws IOException {
         final Configuration conf = new Configuration();
-        this.fileSystem = FSUtils.getFs(conf);
+        this.fileSystem = FSUtils.getFs(conf, Optional.absent());
     }
 
     @Test

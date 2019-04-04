@@ -17,6 +17,8 @@
 package com.uber.marmaray.common.util;
 
 import com.uber.marmaray.utilities.FSUtils;
+import com.google.common.base.Optional;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
@@ -42,7 +44,7 @@ public class TestParquetWriterUtil {
          * We explicitly don't call close() in a tearDownTest() method as the Hadoop FileSystem object is cached
          * so if multiple threads are accessing can affect others if one thread closes it.
          */
-        this.fileSystem = FSUtils.getFs(new com.uber.marmaray.common.configuration.Configuration());
+        this.fileSystem = FSUtils.getFs(new com.uber.marmaray.common.configuration.Configuration(), Optional.absent());
     }
 
     @Test

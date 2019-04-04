@@ -31,7 +31,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashSet;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -44,7 +43,6 @@ public class TestFileWorkUnitCalculator {
     public void computeWorkUnitsNoJson() throws Exception{
         final Configuration conf = new Configuration();
         conf.setProperty(FileSourceConfiguration.TYPE, "json");
-        conf.setProperty(FileSourceConfiguration.SCHEMA, "{}");
         final Path testDir = Files.createTempDirectory(null);
         try {
             conf.setProperty(FileSourceConfiguration.DIRECTORY, testDir.toString());
@@ -61,7 +59,6 @@ public class TestFileWorkUnitCalculator {
     public void computeWorkUnitsNoSuchDirectory() {
         final Configuration conf = new Configuration();
         conf.setProperty(FileSourceConfiguration.TYPE, "json");
-        conf.setProperty(FileSourceConfiguration.SCHEMA, "{}");
         conf.setProperty(FileSourceConfiguration.DIRECTORY, "path/not/exist");
         final FileWorkUnitCalculator workUnitCalculator = new FileWorkUnitCalculator(new FileSourceConfiguration(conf));
         final FileWorkUnitCalculator.FileWorkUnitCalculatorResult result = workUnitCalculator.computeWorkUnits();
@@ -79,16 +76,15 @@ public class TestFileWorkUnitCalculator {
             createFile(testDir, csvFile);
             final Configuration conf = new Configuration();
             conf.setProperty(FileSourceConfiguration.TYPE, "json");
-            conf.setProperty(FileSourceConfiguration.SCHEMA, "{}");
             conf.setProperty(FileSourceConfiguration.DIRECTORY, testDir.toString());
             final FileWorkUnitCalculator workUnitCalculator = new FileWorkUnitCalculator(new FileSourceConfiguration(conf));
             final FileWorkUnitCalculator.FileWorkUnitCalculatorResult result = workUnitCalculator.computeWorkUnits();
-            Assert.assertEquals(2, result.getWorkUnits().size());
             final Set<String> expectedResults = new HashSet<>(Arrays.asList(jsonFile1, jsonFile2));
             final Set<String> actualResults = result.getWorkUnits().stream()
                 .map(FileStatus::getPath)
                 .map(org.apache.hadoop.fs.Path::getName)
                 .collect(Collectors.toSet());
+            Assert.assertEquals(2, result.getWorkUnits().size());
             Assert.assertEquals(expectedResults, actualResults);
         } finally {
             FileUtils.deleteDirectory(testDir.toFile());

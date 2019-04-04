@@ -30,15 +30,15 @@ import java.util.Set;
  * reading data from kafka topic. See {@link KafkaWorkUnitCalculator} for how it is used.
  */
 @Slf4j
-public class KafkaBootstrapOffsetSelector {
+public class KafkaBootstrapOffsetSelector implements IKafkaOffsetSelector {
 
     /**
      * @return per partition offsets to start reading kafka data from.
      */
     public Map<Integer, Long> getPartitionOffsets(@NonNull final KafkaSourceConfiguration kafkaConf,
-        @NonNull final Set<TopicPartition> topicPartitions,
-        @NonNull final Map<TopicPartition, Long> earliestLeaderOffsets,
-        @NonNull final Map<TopicPartition, Long> latestLeaderOffsets) {
+                                                  @NonNull final Set<TopicPartition> topicPartitions,
+                                                  @NonNull final Map<TopicPartition, Long> earliestLeaderOffsets,
+                                                  @NonNull final Map<TopicPartition, Long> latestLeaderOffsets) {
         final Map<Integer, Long> ret = new HashMap<>();
         latestLeaderOffsets.entrySet().stream().forEach(e -> ret.put(e.getKey().partition(), e.getValue()));
         return ret;

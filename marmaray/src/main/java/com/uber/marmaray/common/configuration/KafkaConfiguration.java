@@ -22,7 +22,9 @@ import lombok.NonNull;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import scala.Serializable;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +48,10 @@ public class KafkaConfiguration implements Serializable {
     public static final String ENABLE_AUTO_COMMIT_VALUE = "false";
     public static final String KAFKA_BACKOFF_MS_CONFIG = "retry.backoff.ms";
     public static final String DEFAULT_KAFKA_BACKOFF_MS_CONFIG = "20";
+    public static final String CLIENT_ID = "client.id";
+    public static final String DEFAULT_CLIENT_ID = "marmaray-%s";
+    private static int lastClientIdCache = 0;
+    private static final List<Integer> clientIdQ = new ArrayList<>();
 
     @Getter
     private final Configuration conf;
@@ -66,12 +72,23 @@ public class KafkaConfiguration implements Serializable {
         this.kafkaParams.put(VALUE_DESERIALIZER, ByteArrayDeserializer.class.getCanonicalName());
         this.kafkaParams.put(ENABLE_AUTO_COMMIT, ENABLE_AUTO_COMMIT_VALUE);
         // If retry backoff is not set then we would want to reduce it to lower values. Default value is 400ms.
-        if (!kafkaParams.containsKey(KAFKA_BACKOFF_MS_CONFIG)) {
-            kafkaParams.put(KAFKA_BACKOFF_MS_CONFIG, DEFAULT_KAFKA_BACKOFF_MS_CONFIG);
+        if (!this.kafkaParams.containsKey(KAFKA_BACKOFF_MS_CONFIG)) {
+            this.kafkaParams.put(KAFKA_BACKOFF_MS_CONFIG, DEFAULT_KAFKA_BACKOFF_MS_CONFIG);
         }
     }
 
     public List<String> getMandatoryProperties() {
         return Arrays.asList(KAFKA_BROKER_LIST);
+    }
+
+    public static synchronized int getClientId() {
+        if (clientIdQ.isEmpty()) {
+            int newClientIds = 1000;
+            while (newClientIds-- > 0) {
+                clientIdQ.add(lastClientIdCache++);
+            }
+            Collections.shuffle(clientIdQ);
+        }
+        return clientIdQ.remove(0);
     }
 }

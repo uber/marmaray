@@ -18,6 +18,7 @@ package com.uber.marmaray.common.configuration;
 
 import com.google.common.base.Optional;
 import com.uber.marmaray.common.PartitionType;
+import com.uber.marmaray.common.metadata.StringValue;
 import com.uber.marmaray.utilities.ConfigUtil;
 import lombok.Getter;
 import lombok.NonNull;
@@ -35,9 +36,9 @@ public class HiveConfiguration implements Serializable {
     public static final String HIVE_PROPERTY_PREFIX = Configuration.MARMARAY_PREFIX + "hive.";
     public static final String HIVE_DATA_PATH = HIVE_PROPERTY_PREFIX + "data_path";
     public static final String JOB_NAME = HIVE_PROPERTY_PREFIX + "job_name";
-    public static final String BASE_METADATA_PATH = HIVE_PROPERTY_PREFIX + "job_metadata";
     public static final String PARTITION_KEY_NAME = HIVE_PROPERTY_PREFIX + "partition_key_name";
     public static final String PARTITION_TYPE = HIVE_PROPERTY_PREFIX + "partition_type";
+    public static final String PARTITION = HIVE_PROPERTY_PREFIX + "partition";
 
     @Getter
     private final Configuration conf;
@@ -52,10 +53,10 @@ public class HiveConfiguration implements Serializable {
     private final String jobName;
 
     @Getter
-    private final String baseMetadataPath;
+    private final Optional<String> partitionKeyName;
 
     @Getter
-    private final Optional<String> partitionKeyName;
+    private final Optional<StringValue> partition;
 
     @Getter
     private final PartitionType partitionType;
@@ -66,7 +67,6 @@ public class HiveConfiguration implements Serializable {
 
         this.dataPath = this.getConf().getProperty(HIVE_DATA_PATH).get();
         this.jobName = this.getConf().getProperty(JOB_NAME).get();
-        this.baseMetadataPath = this.getConf().getProperty(BASE_METADATA_PATH).get();
         this.partitionKeyName = this.getConf().getProperty(PARTITION_KEY_NAME);
 
         if (this.conf.getProperty(PARTITION_TYPE).isPresent()) {
@@ -75,9 +75,12 @@ public class HiveConfiguration implements Serializable {
         } else {
             this.partitionType = PartitionType.NONE;
         }
+
+        this.partition = this.getConf().getProperty(PARTITION).isPresent()
+                ? Optional.of(new StringValue(this.getConf().getProperty(PARTITION).get())) : Optional.absent();
     }
 
     public static List<String> getMandatoryProperties() {
-        return Collections.unmodifiableList(Arrays.asList(HIVE_DATA_PATH, JOB_NAME, BASE_METADATA_PATH));
+        return Collections.unmodifiableList(Arrays.asList(HIVE_DATA_PATH, JOB_NAME));
     }
 }

@@ -17,15 +17,17 @@
 package com.uber.marmaray.common.metrics;
 
 import lombok.Getter;
+import lombok.ToString;
 import org.hibernate.validator.constraints.NotEmpty;
 
 /**
  * {@link Double} implementation of {@link Metric}
  */
 @Getter
+@ToString
 public class DoubleMetric extends Metric<Double> {
     public DoubleMetric(final String metricName) {
-        super(metricName);
+        this("metric-type", 0.0);
     }
 
     public DoubleMetric(@NotEmpty final String metricName, final double metricValue) {

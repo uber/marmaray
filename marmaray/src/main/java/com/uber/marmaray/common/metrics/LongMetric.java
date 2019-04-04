@@ -17,12 +17,14 @@
 package com.uber.marmaray.common.metrics;
 
 import lombok.Getter;
+import lombok.ToString;
 import org.hibernate.validator.constraints.NotEmpty;
 
 /**
  * {@link Long} implementation of {@link Metric}
  */
 @Getter
+@ToString
 public class LongMetric extends Metric<Long> {
     public LongMetric(final String metricName) {
         super(metricName);

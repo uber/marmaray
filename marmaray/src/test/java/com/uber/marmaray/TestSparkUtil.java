@@ -20,9 +20,10 @@ package com.uber.marmaray;
 import com.google.common.base.Optional;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.configuration.TestConfiguration;
-import com.uber.marmaray.utilities.SparkUtil;
+import com.uber.marmaray.common.spark.SparkArgs;
+import com.uber.marmaray.common.spark.SparkFactory;
 import java.io.File;
-import java.util.Arrays;
+import java.util.Collections;
 import org.apache.spark.SparkConf;
 import org.junit.Assert;
 import org.junit.Test;
@@ -34,18 +35,23 @@ public class TestSparkUtil {
         final Configuration conf = new Configuration(
             TestSparkUtil.class.getResourceAsStream("/configWithScopes.yaml"),
             Optional.of("incremental"));
-        final SparkConf sparkConf = SparkUtil
-            .getSparkConf("fooApp", Optional.absent(), Arrays.asList(), conf);
+
+        final SparkConf sparkConf = getSparkConf(conf);
         Assert.assertEquals("4g", sparkConf.get("spark.executor.memory"));
         Assert.assertEquals("4g", sparkConf.get("spark.driver.memory"));
         Assert.assertEquals("100s", sparkConf.get("spark.network.timeout"));
+    }
+
+    private SparkConf getSparkConf(final Configuration conf) {
+        final SparkArgs sparkArgs = new SparkArgs(Collections.emptyList(), Collections.emptyList(), conf);
+        final SparkFactory sparkFactory = new SparkFactory(sparkArgs);
+        return sparkFactory.createSparkConf();
     }
 
     @Test
     public void testSparkConfOverrideDoesNotFailWithoutAnySparkConfDefinitions() {
         final Configuration conf = new Configuration(new File(TestConfiguration.CONFIG_YAML),
             Optional.absent());
-        SparkUtil
-            .getSparkConf("fooApp", Optional.absent(), Arrays.asList(), conf);
+        getSparkConf(conf);
     }
 }

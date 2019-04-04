@@ -16,20 +16,25 @@
  */
 package com.uber.marmaray.utilities.listener;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Optional;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
+import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.spark.SparkContext;
 import org.apache.spark.scheduler.Stage;
 import scala.collection.Iterator;
 
-import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * TimeoutManager
@@ -54,18 +59,24 @@ public final class TimeoutManager {
 
     private static TimeoutManager instance = null;
 
+    @Getter
+    private static Boolean timedOut;
+
     private final long jobTimeoutMillis;
     private final long stageTimeoutMillis;
     private final SparkContext sc;
 
     private final long startTime;
-    private final Map<Integer, Long> lastActiveTime = new ConcurrentHashMap<>();
+    @VisibleForTesting
+    @Getter
+    private final Map<Integer, StageActivityTracker> lastActiveTime = new ConcurrentHashMap<>();
 
     private TimeoutManager(final int jobTimeoutInMins, final int stageStalledInMins, @NonNull final SparkContext sc) {
         this.jobTimeoutMillis = TimeUnit.MINUTES.toMillis(jobTimeoutInMins);
         this.stageTimeoutMillis = TimeUnit.MINUTES.toMillis(stageStalledInMins);
         this.sc = sc;
         this.startTime = getCurrentTime();
+        this.timedOut = false;
         log.info("Initializing TimeoutManager, job_timeout = {}ms, stage_timeout = {}ms",
                 this.jobTimeoutMillis, this.stageTimeoutMillis);
     }
@@ -89,6 +100,10 @@ public final class TimeoutManager {
         }
     }
 
+    public static synchronized void close() {
+        instance = null;
+    }
+
     public void startMonitorThread() {
         log.info("Start timeout monitoring...");
         final Thread monitor = new Thread(() -> monitorTimeout());
@@ -105,15 +120,17 @@ public final class TimeoutManager {
                 if (jobTimeout()) {
                     log.error("The spark job is taking longer than {} ms. Cancelling all jobs...",
                             this.jobTimeoutMillis);
+                    this.timedOut = true;
                     this.sc.cancelAllJobs();
                     throw new TimeoutException("The spark job is timing out");
                 }
 
                 final List<Stage> stalledStages = this.stalledStages();
                 if (stalledStages.size() > 0) {
-                    for (Stage stage: stalledStages) {
+                    for (Stage stage : stalledStages) {
                         log.error("Cancelling stage {}-{} and its related jobs due to inactivity... details: {}",
                                 stage.id(), stage.name(), stage.details());
+                        this.timedOut = true;
                         this.sc.cancelStage(stage.id());
                     }
                 }
@@ -125,8 +142,28 @@ public final class TimeoutManager {
         }
     }
 
-    public void setLastEventTime(final int id) {
-        lastActiveTime.put(id, getCurrentTime());
+    public void stageFinished(final int stageId) {
+        this.lastActiveTime.remove(stageId);
+    }
+
+    public void stageStarted(final int stageId) {
+        this.lastActiveTime.put(stageId, new StageActivityTracker());
+    }
+
+    public void taskStarted(final int stageId) {
+        Optional<StageActivityTracker> stageTracker = Optional.fromNullable(lastActiveTime.get(stageId));
+        if (!stageTracker.isPresent()) {
+            stageStarted(stageId);
+            stageTracker = Optional.fromNullable(lastActiveTime.get(stageId));
+        }
+        stageTracker.get().taskStarted();
+    }
+
+    public void taskFinished(final int stageId) {
+        final Optional<StageActivityTracker> stageTracker = Optional.fromNullable(lastActiveTime.get(stageId));
+        if (stageTracker.isPresent()) {
+            stageTracker.get().taskFinished();
+        }
     }
 
     public boolean jobTimeout() {
@@ -134,14 +171,15 @@ public final class TimeoutManager {
     }
 
     public List<Stage> stalledStages() {
-        final List<Stage> stalledStages = new ArrayList<>();
+        final List<Stage> stalledStages = new LinkedList<>();
         final long currentTime = getCurrentTime();
         final Iterator<Stage> stageItr = sc.dagScheduler().runningStages().iterator();
         while (stageItr.hasNext()) {
             final Stage stage = stageItr.next();
             final int stageId = stage.id();
-            if (lastActiveTime.containsKey(stageId)) {
-                if (currentTime - lastActiveTime.get(stageId) > stageTimeoutMillis) {
+            final Optional<StageActivityTracker> stageTracker = Optional.fromNullable(lastActiveTime.get(stageId));
+            if (stageTracker.isPresent() && stageTracker.get().getRunningTasks().get() > 0) {
+                if (currentTime - lastActiveTime.get(stageId).lastActiveTime > stageTimeoutMillis) {
                     stalledStages.add(stage);
                 }
             }
@@ -151,5 +189,28 @@ public final class TimeoutManager {
 
     private static long getCurrentTime() {
         return System.currentTimeMillis();
+    }
+
+    /**
+     * Helper class for tracking Spark stage's activity.
+     */
+    @Getter
+    @RequiredArgsConstructor
+    public static class StageActivityTracker {
+        @VisibleForTesting
+        @Getter
+        private final AtomicInteger runningTasks = new AtomicInteger(0);
+        private long lastActiveTime = 0L;
+
+        public void taskStarted() {
+            this.lastActiveTime = getCurrentTime();
+            this.runningTasks.incrementAndGet();
+        }
+
+        public void taskFinished() {
+            this.lastActiveTime = getCurrentTime();
+            this.runningTasks.decrementAndGet();
+        }
+
     }
 }

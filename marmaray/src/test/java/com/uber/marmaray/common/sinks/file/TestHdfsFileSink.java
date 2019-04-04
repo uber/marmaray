@@ -20,7 +20,7 @@ package com.uber.marmaray.common.sinks.file;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.configuration.FileSinkConfiguration;
-import com.uber.marmaray.common.converters.data.FileSinkDataConverter;
+import com.uber.marmaray.common.converters.data.FileSinkDataCSVConverter;
 import com.uber.marmaray.common.util.AvroPayloadUtil;
 import com.uber.marmaray.utilities.ErrorExtractor;
 import com.uber.marmaray.utilities.StringTypes;
@@ -109,7 +109,7 @@ public class TestHdfsFileSink  extends FileSinkTestUtil {
                 StringTypes.EMPTY);
         final Configuration conf = initConfig(pathPrefix, PATH4, COMMA_SEPARATOR, TIMESTAMP1, SOURCE_SUB_PATH1, VERSION);
         conf.setProperty(FileSinkConfiguration.CSV_COLUMN_HEADER, "true");
-        final FileSinkDataConverter converter = new FileSinkDataConverter(conf, new ErrorExtractor());
+        final FileSinkDataCSVConverter converter = new FileSinkDataCSVConverter(conf, new ErrorExtractor());
         final FileSinkConfiguration fileConf = new FileSinkConfiguration(conf);
         final HdfsFileSink hdfsSink = spy(new HdfsFileSink(fileConf, converter));
         hdfsSink.write(testData);
@@ -134,7 +134,7 @@ public class TestHdfsFileSink  extends FileSinkTestUtil {
                                       @NonNull final int partitionNum, @NonNull final String timeStamp,
                                       @NonNull final String sourceSubPath, @NonNull final String dispersalType) throws Exception {
         final Configuration conf = initConfig(pathPrefix, path, separator, timeStamp, sourceSubPath, dispersalType);
-        final FileSinkDataConverter converter = new FileSinkDataConverter(conf, new ErrorExtractor());
+        final FileSinkDataCSVConverter converter = new FileSinkDataCSVConverter(conf, new ErrorExtractor());
         final FileSinkConfiguration fileConf = new FileSinkConfiguration(conf);
         final HdfsFileSink hdfsSink = spy(new HdfsFileSink(fileConf, converter));
         hdfsSink.write(testData);

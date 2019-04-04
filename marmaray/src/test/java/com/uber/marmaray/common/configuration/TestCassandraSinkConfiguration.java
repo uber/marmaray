@@ -104,6 +104,20 @@ public class TestCassandraSinkConfiguration {
         Assert.fail();
     }
 
+    @Test(expected = IllegalStateException.class)
+    public void testZeroMaxBatchSize() {
+        final Configuration rawConf = getConfig("");
+        rawConf.setProperty(CassandraSinkConfiguration.MAX_BATCH_SIZE_MB, "0");
+        new CassandraSinkConfiguration(rawConf);
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testNegativeSleepTime() {
+        final Configuration rawConf = getConfig("");
+        rawConf.setProperty(CassandraSinkConfiguration.MIN_BATCH_DURATION_SECONDS, "-1");
+        new CassandraSinkConfiguration(rawConf);
+    }
+
     private Configuration getConfig(String propToExclude) {
         final Configuration conf = new Configuration();
 

@@ -76,9 +76,12 @@ public final class ThreadPoolService {
 
     private ThreadPoolService(final int numThreads, final int reservedJobDagThreads, final int reservedActionsThreads) {
         log.info("Starting thread pool service numThreads:{} numJobDagThreads:{}", numThreads, reservedJobDagThreads);
-        Preconditions.checkState(numThreads > 0 && reservedJobDagThreads > 0 && reservedActionsThreads > 0,
-                String.format("Number of threads should be positive: total: %d, jobDag: %d, actions: %d",
-                        numThreads, reservedJobDagThreads, reservedActionsThreads));
+        Preconditions.checkState(numThreads > 0 , String.format(
+                "numThreads should be positive: %d", numThreads));
+        Preconditions.checkState(reservedJobDagThreads > 0, String.format(
+                "reservedJobDagThreads should be positive: %d", reservedJobDagThreads));
+        Preconditions.checkState(reservedActionsThreads > 0, String.format(
+                "reservedActionThreads should be positive: %d", reservedActionsThreads));
         Preconditions.checkState(numThreads >= reservedJobDagThreads + reservedActionsThreads,
                 String.format(
                         "Total threads must be at least equal to reserved threads: total: %d, jobDag: %d, actions: %d ",

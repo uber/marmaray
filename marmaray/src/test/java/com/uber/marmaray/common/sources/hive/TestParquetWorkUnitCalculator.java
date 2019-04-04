@@ -62,12 +62,11 @@ public class TestParquetWorkUnitCalculator {
     public void setupTest() throws IOException {
 
         this.config = new Configuration();
-        this.fileSystem = FSUtils.getFs(this.config);
+        this.fileSystem = FSUtils.getFs(this.config, Optional.absent());
         this.dataPath = FileTestUtil.getTempFolder();
         this.metadataPath = FileTestUtil.getTempFolder();
 
         this.config.setProperty(HiveSourceConfiguration.JOB_NAME, JOB_NAME);
-        this.config.setProperty(HiveSourceConfiguration.BASE_METADATA_PATH, this.metadataPath);
         this.config.setProperty(HiveSourceConfiguration.HIVE_DATA_PATH, this.dataPath);
         this.config.setProperty(HiveSourceConfiguration.PARTITION_TYPE, PartitionType.NORMAL.toString());
 
@@ -88,7 +87,6 @@ public class TestParquetWorkUnitCalculator {
         this.fileSystem.mkdirs(new Path(this.dataPath, PARTITION_3));
 
         this.partitionManager = new HDFSPartitionManager(JOB_NAME,
-                this.metadataPath,
                 this.dataPath,
                 this.fileSystem);
 
@@ -102,7 +100,6 @@ public class TestParquetWorkUnitCalculator {
         virtuallyProcessPartition(this.partitionManager, this.metadataManager, Optional.absent(), PARTITION_2);
 
         final HDFSPartitionManager partitionManager2 = new HDFSPartitionManager(JOB_NAME,
-                this.metadataPath,
                 this.dataPath,
                 this.fileSystem);
 
@@ -122,7 +119,6 @@ public class TestParquetWorkUnitCalculator {
         this.fileSystem.create(new Path(this.dataPath, dataFileName));
 
         this.partitionManager = new HDFSPartitionManager(JOB_NAME,
-                this.metadataPath,
                 this.dataPath,
                 this.fileSystem);
 
@@ -137,7 +133,6 @@ public class TestParquetWorkUnitCalculator {
         // A checkpoint now exists.  Now virtually reprocess that single partition explicitly via data path
         // by initializing and saving run states
         final HDFSPartitionManager pm2 = new HDFSPartitionManager(JOB_NAME,
-                this.metadataPath,
                 this.dataPath,
                 this.fileSystem);
 
@@ -170,7 +165,6 @@ public class TestParquetWorkUnitCalculator {
         this.fileSystem.mkdirs(new Path(this.dataPath, PARTITION_3));
 
         this.partitionManager = new HDFSPartitionManager(JOB_NAME,
-                this.metadataPath,
                 this.dataPath,
                 this.fileSystem);
 

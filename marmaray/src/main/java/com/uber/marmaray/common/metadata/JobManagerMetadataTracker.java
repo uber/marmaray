@@ -62,7 +62,8 @@ public class JobManagerMetadataTracker {
                 throw new MissingPropertyException("Base Path for HDFS JobManager Metadata Tracker is missing.");
             }
             this.metadataManager =
-                    new HDFSMetadataManager(FSUtils.getFs(config), basePath.get(), new AtomicBoolean(true));
+                    new HDFSMetadataManager(FSUtils.getFs(config, basePath), basePath.get(),
+                        new AtomicBoolean(true));
             this.shouldSaveChanges = new AtomicBoolean(true);
         }
     }

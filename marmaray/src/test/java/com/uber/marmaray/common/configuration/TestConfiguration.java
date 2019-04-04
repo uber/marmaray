@@ -22,6 +22,8 @@ import com.uber.marmaray.common.util.AbstractSparkTest;
 import java.io.File;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.Properties;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -94,4 +96,18 @@ public class TestConfiguration extends AbstractSparkTest {
     public void testConfigurationParseWithNonExistentScope() {
         new Configuration(scopeAwareConfigInputStream, Optional.of("non-existent-scope"));
     }
+
+    @Test
+    public void testGetProperties() {
+        Configuration conf = new Configuration(new File(CONFIG_YAML), Optional.absent());
+        Properties properties = conf.getProperties();
+        final String newKey = "new_key";
+        Assert.assertEquals(10, properties.size());
+        properties.put(newKey, "new_value");
+        Properties mutatedProperties = conf.getProperties();
+        // Tests that the getProperties() returns a copy of the properties and not a
+        // direct reference to the properties itself
+        Assert.assertNull(mutatedProperties.getProperty(newKey));
+    }
+
 }

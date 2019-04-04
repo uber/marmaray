@@ -20,6 +20,9 @@ import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.metadata.HDFSMetadataManager;
 import com.uber.marmaray.utilities.CommandLineUtil;
 import com.uber.marmaray.utilities.FSUtils;
+
+import com.google.common.base.Optional;
+
 import java.io.IOException;
 import java.util.Comparator;
 import lombok.extern.slf4j.Slf4j;
@@ -78,7 +81,7 @@ public class HDFSMetadataPruner {
                 : false;
 
         final Configuration conf = new Configuration();
-        final FileSystem fs = FSUtils.getFs(conf);
+        final FileSystem fs = FSUtils.getFs(conf, Optional.absent());
 
         if (fs.isDirectory(metadataPath)) {
             final FileStatus[] fileStatuses = fs.listStatus(metadataPath);

@@ -28,6 +28,6 @@ import java.util.Queue;
  */
 public interface IJobExecutionStrategy {
 
-    List<JobDag> sort(@NonNull final Queue<JobDag> inputJobDags);
+    List<Dag> sort(@NonNull final Queue<Dag> inputJobDags);
 
 }

@@ -23,6 +23,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.JobMetrics;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.validator.constraints.NotEmpty;
 
@@ -32,6 +35,14 @@ import org.hibernate.validator.constraints.NotEmpty;
 @Slf4j
 public class MemoryMetadataManager implements IMetadataManager<StringValue> {
     private final Map<String, StringValue> metadataMap = new HashMap<>();
+
+    @Override
+    public void setDataFeedMetrics(@NonNull final DataFeedMetrics dataFeedMetrics) {
+    }
+
+    @Override
+    public void setJobMetrics(@NonNull final JobMetrics jobMetrics) {
+    }
 
     @Override
     public void set(@NotEmpty final String key, @NotEmpty final StringValue value) {

@@ -47,7 +47,9 @@ public class ReporterAction implements IJobDagAction {
                     this.dataFeedMetrics.gaugeAll(reporter);
                 });
         } else {
-            log.warn("No metrics produced or actions being executed on reporter because errors were encountered");
+            this.reporters.getReporters().forEach(reporter -> this.dataFeedMetrics.gauageFailureMetric(reporter));
+            log.warn("Other than failure reports "
+                    + "no metrics produced or actions being executed on reporter because errors were encountered");
         }
         return success;
     }

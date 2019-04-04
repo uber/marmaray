@@ -22,7 +22,6 @@ import com.uber.marmaray.common.configuration.HiveSourceConfiguration;
 import com.uber.marmaray.common.converters.data.SparkSourceDataConverter;
 import com.uber.marmaray.common.converters.schema.DataFrameSchemaConverter;
 import com.uber.marmaray.common.metadata.HDFSMetadataManager;
-import com.uber.marmaray.common.metadata.HDFSPartitionManager;
 import com.uber.marmaray.common.sources.IWorkUnitCalculator;
 import com.uber.marmaray.common.util.AbstractSparkTest;
 import com.uber.marmaray.common.util.FileHelperUtil;
@@ -69,7 +68,7 @@ public class TestHiveSource extends AbstractSparkTest {
 
         final String dataPath = FileHelperUtil.getResourcePath(getClass(), METADATA_KEY);
         final HiveSourceConfiguration hiveConf =
-            HiveTestUtil.initializeConfig(JOB_NAME, dataPath, "testMetadataPath");
+            HiveTestUtil.initializeConfig(JOB_NAME, dataPath);
         final SparkSourceDataConverter converter = new SparkSourceDataConverter(dfSchema, avroSchema,
             hiveConf.getConf(), Sets.newHashSet(LEFT_FIELD, RIGHT_FIELD), new ErrorExtractor());
         final HiveSource source = new HiveSource(hiveConf, this.sqlContext.get(), converter);

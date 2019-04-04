@@ -21,6 +21,7 @@ import com.uber.marmaray.common.DispersalType;
 import com.uber.marmaray.common.FileSinkType;
 import com.uber.marmaray.common.PartitionType;
 import com.uber.marmaray.common.exceptions.MissingPropertyException;
+import com.uber.marmaray.common.DispersalLengthType;
 import com.uber.marmaray.utilities.ConfigUtil;
 import com.uber.marmaray.utilities.SchemaUtil;
 import lombok.Getter;
@@ -46,8 +47,15 @@ public class FileSinkConfiguration implements Serializable {
     public static final String PATH_PREFIX = FILE_COMM_PREFIX + "path_prefix";
     public static final String FILE_TYPE = FILE_COMM_PREFIX + "file_type";
     public static final String DEFAULT_FILE_TYPE = "csv";
+    public static final String COMPRESSION = FILE_COMM_PREFIX + "compression";
+    public static final Boolean DEFAULT_COMPRESSION = false;
+    public static final String COMPRESSION_CODEC = FILE_COMM_PREFIX + "compression_codec";
+    public static final String DEFAULT_COMPRESSION_CODEC = "lz4";
+    public static final String ROW_IDENTIFIER = FILE_COMM_PREFIX + "row_identifier";
+    public static final String DEFAULT_ROW_IDENTIFIER = "";
     public static final String CSV_COLUMN_HEADER = FILE_COMM_PREFIX + "with_column_header";
     public static final Boolean DEFAULT_CSV_COLUMN_HEADER = false;
+    public static final String DISPERSAL_LENGTH = FILE_COMM_PREFIX + "dispersal_length";
     //Expected file size in MegaByte
     public static final String FILE_SIZE_MEGABYTE = FILE_COMM_PREFIX + "file_size_megabyte";
     //Default file size set output to one file.
@@ -86,6 +94,10 @@ public class FileSinkConfiguration implements Serializable {
     @Getter
     private final String fileType;
     @Getter
+    private final boolean compression;
+    @Getter
+    private final String compressionCodec;
+    @Getter
     private final double fileSizeMegaBytes;
     @Getter
     private final boolean columnHeader;
@@ -109,6 +121,8 @@ public class FileSinkConfiguration implements Serializable {
     private final String fileNamePrefix;
     @Getter
     private final PartitionType partitionType;
+    @Getter
+    private final String rowIdentifier;
 
     //aws s3 properties
     @Getter
@@ -126,12 +140,18 @@ public class FileSinkConfiguration implements Serializable {
     @Getter
     private final Configuration conf;
 
+    @Getter
+    private final DispersalLengthType dispersalLength;
+
     public FileSinkConfiguration(@NonNull final Configuration conf)
             throws MissingPropertyException, UnsupportedOperationException {
         this.conf = conf;
         ConfigUtil.checkMandatoryProperties(this.conf, this.getMandatoryProperties());
         this.path = this.conf.getProperty(FS_PATH, DEFAULT_FS_PATH);
         this.fileType = this.conf.getProperty(FILE_TYPE, DEFAULT_FILE_TYPE);
+        this.compression = this.conf.getBooleanProperty(COMPRESSION, DEFAULT_COMPRESSION);
+        this.compressionCodec = this.conf.getProperty(COMPRESSION_CODEC, DEFAULT_COMPRESSION_CODEC);
+        this.rowIdentifier = this.conf.getProperty(ROW_IDENTIFIER, DEFAULT_ROW_IDENTIFIER);
         this.fileSizeMegaBytes = this.conf.getDoubleProperty(FILE_SIZE_MEGABYTE, DEFAULT_FILE_SIZE);
         this.columnHeader = this.conf.getBooleanProperty(CSV_COLUMN_HEADER, DEFAULT_CSV_COLUMN_HEADER);
 
@@ -204,6 +224,13 @@ public class FileSinkConfiguration implements Serializable {
 
         this.writeTimestamp = this.conf.getProperty(TIMESTAMP).get();
         this.sourceType = this.conf.getProperty(SOURCE_TYPE).get();
+
+        if (this.conf.getProperty(DISPERSAL_LENGTH).isPresent()
+                && this.conf.getProperty(DISPERSAL_LENGTH).get().equals("multiple_day")) {
+            this.dispersalLength = DispersalLengthType.MULTIPLE_DAY;
+        } else {
+            this.dispersalLength = DispersalLengthType.SINGLE_DAY;
+        }
 
         this.fileNamePrefix = String.format("%s_%s_%s_%s",
                 FILE_NAME_PREFIX, this.sourceType, this.sourceNamePrefix, this.writeTimestamp);

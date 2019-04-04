@@ -17,6 +17,7 @@
 package com.uber.marmaray.common.converters.schema;
 
 import com.google.common.base.Preconditions;
+import com.uber.marmaray.utilities.SchemaUtil;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
 import org.apache.spark.sql.types.DataType;
@@ -55,44 +56,45 @@ public class DataFrameSchemaConverter extends AbstractSchemaConverter<StructType
 
         final DataType dt = structField.dataType().defaultConcreteType();
 
-        /**
+        /*
          * Can't use switch statement here because this is not a compile time constant expression
          * and I'd rather compare it to a concrete type rather than use strings
          *
          * For now, we just handle atomic, fractional, or integral types.
          * Todo: Handle Map/Array/Struct types etc
          */
-        final SchemaBuilder.BaseFieldTypeBuilder<Schema> fieldType =
-            structField.nullable() ? fieldBuilder.type().nullable() : fieldBuilder.type();
         if (dt.equals(DataTypes.TimestampType)) {
-            fieldType.stringType().noDefault();
-        } else if (dt.equals(DataTypes.StringType)) {
-            fieldType.stringType().noDefault();
-        } else if (dt.equals(DataTypes.BooleanType)) {
-            fieldType.booleanType().noDefault();
-        } else if (dt.equals(DataTypes.DateType)) {
-            fieldType.stringType().noDefault();
-        } else if (dt.equals(DataTypes.BinaryType)) {
-            // validate this is correct
-            fieldType.bytesType().noDefault();
-        } else if (dt.equals(DataTypes.DoubleType)) {
-            fieldType.doubleType().noDefault();
-        } else if (dt.equals(DataTypes.FloatType)) {
-            fieldType.floatType().noDefault();
-        } else if (dt.equals(DataTypes.ByteType)) {
-            fieldType.bytesType().noDefault();
-        } else if (dt.equals(DataTypes.IntegerType)) {
-            fieldType.intType().noDefault();
-        } else if (dt.equals(DataTypes.LongType)) {
-            fieldType.longType().noDefault();
-        } else if (dt.equals(DataTypes.ShortType)) {
-            // no corresponding short type in DataTypes
-            // we can make this int and lose no precision
-            fieldType.intType().noDefault();
+            fieldBuilder.type(SchemaUtil.getTimestampSchema(structField.nullable())).noDefault();
         } else {
-            throw new RuntimeException("The field type " + dt + " is not supported");
+            final SchemaBuilder.BaseFieldTypeBuilder<Schema> fieldType =
+                structField.nullable() ? fieldBuilder.type().nullable() : fieldBuilder.type();
+            if (dt.equals(DataTypes.StringType)) {
+                fieldType.stringType().noDefault();
+            } else if (dt.equals(DataTypes.BooleanType)) {
+                fieldType.booleanType().noDefault();
+            } else if (dt.equals(DataTypes.DateType)) {
+                fieldType.stringType().noDefault();
+            } else if (dt.equals(DataTypes.BinaryType)) {
+                fieldType.bytesType().noDefault();
+            } else if (dt.equals(DataTypes.DoubleType)) {
+                fieldType.doubleType().noDefault();
+            } else if (dt.equals(DataTypes.FloatType)) {
+                fieldType.floatType().noDefault();
+            } else if (dt.equals(DataTypes.ByteType)) {
+                fieldType.bytesType().noDefault();
+            } else if (dt.equals(DataTypes.IntegerType)) {
+                fieldType.intType().noDefault();
+            } else if (dt.equals(DataTypes.LongType)) {
+                fieldType.longType().noDefault();
+            } else if (dt.equals(DataTypes.ShortType)) {
+                // no corresponding short type in DataTypes
+                // we can make this int and lose no precision
+                fieldType.intType().noDefault();
+            } else {
+                throw new RuntimeException("The field type " + dt + " is not supported");
+            }
         }
-        /**
+        /*
          * Todo: Handle following types
          * CalendarIntervalType
          * StructType

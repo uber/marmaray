@@ -19,11 +19,11 @@ package com.uber.marmaray.common.schema.cassandra;
 import com.google.common.base.Joiner;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.utilities.GenericRecordUtil;
+import com.uber.marmaray.utilities.SchemaUtil;
 import com.uber.marmaray.utilities.StringTypes;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.apache.avro.Schema;
-import org.apache.spark.sql.execution.columnar.LONG;
 import org.hibernate.validator.constraints.NotEmpty;
 
 import java.io.Serializable;
@@ -36,6 +36,8 @@ public final class CassandraSchemaField implements Serializable {
     public static final String FLOAT_TYPE = "float";
     public static final String BOOLEAN_TYPE = "boolean";
     public static final String DOUBLE_TYPE = "double";
+    public static final String TIMESTAMP_TYPE = "timestamp";
+    public static final String BINARY_TYPE = "blob";
 
     private static final Joiner joiner = Joiner.on(StringTypes.COMMA);
 
@@ -57,6 +59,10 @@ public final class CassandraSchemaField implements Serializable {
                 : schema;
         final Schema.Type type = nonNullSchema.getType();
 
+        if (SchemaUtil.isTimestampSchema(schema)) {
+            return TIMESTAMP_TYPE;
+        }
+
         switch (type) {
             case STRING:
                 return STRING_TYPE;
@@ -70,6 +76,8 @@ public final class CassandraSchemaField implements Serializable {
                 return BOOLEAN_TYPE;
             case DOUBLE:
                 return DOUBLE_TYPE;
+            case BYTES:
+                return BINARY_TYPE;
             default:
                 // todo T935985: Support more complex types from Schema.Type
                 throw new JobRuntimeException("Type " + type + " is not supported for conversion. Field(s): "

@@ -52,7 +52,6 @@ public class HDFSPartitionManager {
     private final boolean isSinglePartition;
 
     public HDFSPartitionManager(@NotEmpty final String metadataKey,
-                                @NotEmpty final String genericBaseMetadataPath,
                                 @NotEmpty final String baseDataPath,
                                 @NonNull final FileSystem fileSystem) throws IOException {
         this.metadataKey = metadataKey;

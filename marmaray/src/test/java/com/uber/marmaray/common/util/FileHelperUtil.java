@@ -16,9 +16,14 @@
  */
 package com.uber.marmaray.common.util;
 
+import lombok.NonNull;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.CharEncoding;
+import org.hibernate.validator.constraints.NotEmpty;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 
@@ -29,5 +34,20 @@ public class FileHelperUtil {
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void copyResourceFileToLocalFile(@NonNull final Class clazz,
+                                                   @NotEmpty final String resource,
+                                                   @NonNull final File targetFile) {
+        try {
+            final InputStream stream = clazz.getClassLoader().getResourceAsStream(resource);
+            if (stream == null) {
+                throw new RuntimeException(String.format("Unable to find resource %s", resource));
+            }
+            FileUtils.copyInputStreamToFile(stream, targetFile);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 }

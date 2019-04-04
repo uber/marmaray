@@ -24,10 +24,12 @@ import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.CassandraSinkConfiguration;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.configuration.ErrorTableConfiguration;
+import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.configuration.HiveConfiguration;
 import com.uber.marmaray.common.configuration.HiveSourceConfiguration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.configuration.KafkaConfiguration;
+import com.uber.marmaray.common.configuration.SparkConfiguration;
 import com.uber.marmaray.common.converters.converterresult.ConverterResult;
 import com.uber.marmaray.common.converters.data.AbstractDataConverter;
 import com.uber.marmaray.common.data.BinaryRawData;
@@ -48,14 +50,9 @@ import com.uber.marmaray.common.sinks.hoodie.HoodieWriteStatus;
 import com.uber.marmaray.utilities.SparkUtil;
 import com.uber.marmaray.utilities.TimestampInfo;
 import com.uber.marmaray.utilities.listener.SparkEventListener;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
+import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.util.Utf8;
 import org.apache.spark.SparkConf;
@@ -67,43 +64,52 @@ import org.apache.spark.sql.SparkSession.Builder;
 import scala.collection.JavaConverters;
 import scala.collection.mutable.WrappedArray.ofRef;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
 /**
  * {@link SparkFactory} is responsible for creating any Spark related resource such as
  * {@link JavaSparkContext} or {@link SparkSession}, or even {@link SparkConf} which is required
  * to create the former two. Pass this object around in code to access the above mentioned resources.
  */
 @Slf4j
+@RequiredArgsConstructor
 public class SparkFactory {
 
-    private Optional<SparkSession> sparkSession = Optional.absent();
-
+    @NonNull
+    @Getter
+    private final SparkArgs sparkArgs;
+    private Optional<SparkSession> sparkSessionOptional = Optional.absent();
     /**
      * Uses {@link SparkSession} returned from {@link SparkFactory#getSparkSession}
      * to create {@link JavaSparkContext}. See {@link SparkFactory#getSparkSession}
      * for {@link SparkSession} that is retrieved.
      */
-    public synchronized JavaSparkContext getSparkContext(
-        @NonNull final SparkArgs sparkArgs) {
-        return new JavaSparkContext(getSparkSession(sparkArgs, false).sparkContext());
+    public synchronized JavaSparkContext getSparkContext() {
+        return new JavaSparkContext(getSparkSession().sparkContext());
     }
 
     /**
      * Uses existing {@link SparkSession} if present, else creates a new one
      */
-    public synchronized SparkSession getSparkSession(
-        @NonNull final SparkArgs sparkArgs, final boolean enableHiveSupport) {
-        if (this.sparkSession.isPresent()) {
-            return sparkSession.get();
+    public synchronized SparkSession getSparkSession() {
+        if (this.sparkSessionOptional.isPresent()) {
+            return this.sparkSessionOptional.get();
         }
         final Builder sparkSessionBuilder = SparkSession.builder();
-        if (enableHiveSupport) {
+        if (this.sparkArgs.isHiveSupportEnabled()) {
             sparkSessionBuilder.enableHiveSupport();
         }
-        this.sparkSession = Optional.of(sparkSessionBuilder
-            .config(createSparkConf(sparkArgs)).getOrCreate());
+        this.sparkSessionOptional = Optional.of(sparkSessionBuilder
+            .config(createSparkConf()).getOrCreate());
         log.info("Created new SparkSession using {}", sparkArgs);
-        updateSparkContext(sparkArgs, this.sparkSession.get().sparkContext());
-        return this.sparkSession.get();
+        updateSparkContext(sparkArgs, this.sparkSessionOptional.get().sparkContext());
+        return this.sparkSessionOptional.get();
     }
 
     /**
@@ -111,32 +117,46 @@ public class SparkFactory {
      * registering default/user-input serializable classes and user-input Avro Schemas.
      * Once {@link SparkContext} is created, we can no longer register serialization classes and Avro schemas.
      */
-    public SparkConf createSparkConf(@NonNull final SparkArgs sparkArgs) {
+    public SparkConf createSparkConf() {
         /**
          * By custom registering classes the full class name of each object
          * is not stored during serialization which reduces storage space.
          */
         final SparkConf sparkConf = new SparkConf();
-        sparkConf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer");
+        sparkConf.set("spark.serializer", MarmarayKryoSerializer.class.getName());
+        // We don't want to cache too many connections on kafka consumer so we will be limiting it to 4 per executor
+        // default value is 64. See org.apache.spark.streaming.kafka010.KafkaRDD for more information
+        sparkConf.set("spark.streaming.kafka.consumer.cache.initialCapacity", "4");
+        sparkConf.set("spark.streaming.kafka.consumer.cache.maxCapacity", "4");
+
         final List<Class> serializableClasses = getDefaultSerializableClasses();
-        serializableClasses.addAll(sparkArgs.getUserSerializationClasses());
+        serializableClasses.addAll(this.sparkArgs.getUserSerializationClasses());
         sparkConf.registerKryoClasses(serializableClasses.toArray(new Class[0]));
 
-        if (sparkArgs.getAvroSchemas().isPresent()) {
-            sparkConf.registerAvroSchemas(
-                JavaConverters
-                    .iterableAsScalaIterableConverter(sparkArgs.getAvroSchemas().get())
-                    .asScala()
-                    .toSeq());
-        }
+        sparkConf.registerAvroSchemas(
+            JavaConverters
+                .iterableAsScalaIterableConverter(this.sparkArgs.getAvroSchemas())
+                .asScala()
+                .toSeq());
 
         // override spark properties
-        final Map<String, String> sparkProps = sparkArgs.getOverrideSparkProperties();
+        final Map<String, String> sparkProps = SparkConfiguration
+            .getOverrideSparkProperties(this.sparkArgs.getConfiguration());
         for (Entry<String, String> entry : sparkProps.entrySet()) {
             log.info("Setting spark key:val {} : {}", entry.getKey(), entry.getValue());
             sparkConf.set(entry.getKey(), entry.getValue());
         }
         return sparkConf;
+    }
+
+    /**
+     * Stops any existing {@link SparkSession} and removes reference to it
+     */
+    public synchronized void stop() {
+        if (this.sparkSessionOptional.isPresent()) {
+            this.sparkSessionOptional.get().stop();
+            this.sparkSessionOptional = Optional.absent();
+        }
     }
 
     /**
@@ -151,14 +171,14 @@ public class SparkFactory {
         for (SparkListener sparkListener : getSparkEventListeners()) {
             sc.addSparkListener(sparkListener);
         }
-        sc.hadoopConfiguration().addResource(sparkArgs.getHadoopConfiguration());
+        sc.hadoopConfiguration().addResource(
+            new HadoopConfiguration(sparkArgs.getConfiguration()).getHadoopConf());
     }
 
     private List<Class> getDefaultSerializableClasses() {
         final List<Class> serializableClasses = new LinkedList(Arrays.<Class>asList(
             AbstractDataConverter.class,
             AbstractValue.class,
-            AvroPayload.class,
             ArrayList.class,
             BinaryRawData.class,
             CassandraDataField.class,
@@ -193,6 +213,7 @@ public class SparkFactory {
             Optional.absent().getClass(),
             Utf8.class,
             Class.class));
+        serializableClasses.addAll(AvroPayload.getSerializationClasses());
 
         SparkUtil.addClassesIfFound(serializableClasses,
             Arrays.asList(

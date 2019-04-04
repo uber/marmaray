@@ -16,12 +16,16 @@
  */
 package com.uber.marmaray.common.configuration;
 
+import com.google.common.base.Optional;
+import com.uber.marmaray.common.exceptions.MissingPropertyException;
 import com.uber.marmaray.utilities.NumberConstants;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 
+import java.util.concurrent.TimeUnit;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -30,6 +34,7 @@ import java.util.List;
  *
  * All properties start with {@link #KAFKA_COMMON_PROPERTY_PREFIX}.
  */
+@Slf4j
 public class KafkaSourceConfiguration extends KafkaConfiguration {
 
     public static final String KAFKA_PROPERTY_PREFIX = KAFKA_COMMON_PROPERTY_PREFIX + "source.";
@@ -38,18 +43,23 @@ public class KafkaSourceConfiguration extends KafkaConfiguration {
     public static final String KAFKA_MAX_MESSAGES_TO_READ = KAFKA_PROPERTY_PREFIX + "max_messages";
     public static final long DEFAULT_KAFKA_MAX_MESSAGES_TO_READ = NumberConstants.ONE_MILLION;
     public static final String KAFKA_READ_PARALLELISM = KAFKA_PROPERTY_PREFIX + "read_parallelism";
+    public static final String USE_PARALLEL_BROKER_READ = KAFKA_PROPERTY_PREFIX + "use_parallel_broker_read";
+    public static final boolean DEFAULT_USE_PARALLEL_BROKER_READ = false;
     /**
      * It is used for the very first run to set partition offsets for kafka topic. Expected format is "yyyy-MM-dd".
      */
     public static final String KAFKA_START_DATE = KAFKA_PROPERTY_PREFIX + "start_date";
     public static final String KAFKA_START_DATE_FORMAT = "yyyy-MM-dd";
+    // epoch time in seconds
+    public static final String KAFKA_START_TIME = KAFKA_PROPERTY_PREFIX + "start_time";
+    public static final long MAX_KAFKA_LOOKBACK_SEC = TimeUnit.DAYS.toSeconds(7);
 
     @Getter
     private final String topicName;
     @Getter
     private final String clusterName;
     /**
-     * start time in millis. (inclusive).
+     * start time in seconds. (inclusive).
      */
     @Getter
     private final long startTime;
@@ -58,10 +68,27 @@ public class KafkaSourceConfiguration extends KafkaConfiguration {
         super(conf);
         this.topicName = getConf().getProperty(KAFKA_TOPIC_NAME).get();
         this.clusterName = getConf().getProperty(KAFKA_CLUSTER_NAME).get();
-        this.startTime =
-            DateTime.parse(getConf().getProperty(KAFKA_START_DATE).get(),
-                DateTimeFormat.forPattern(KafkaSourceConfiguration.KAFKA_START_DATE_FORMAT).withZoneUTC()
+
+        //Try to initialize the start time. "start_date" is legacy, please use start_time moving forward.
+        final Optional<String> startTimeinSeconds = getConf().getProperty(KAFKA_START_TIME);
+        final Optional<String> startDate = getConf().getProperty(KAFKA_START_DATE);
+
+        if (startTimeinSeconds.isPresent()) {
+            this.startTime = Long.valueOf(startTimeinSeconds.get());
+        } else if (startDate.isPresent()) {
+            this.startTime = DateTime.parse(
+                    startDate.get(),
+                    DateTimeFormat.forPattern(KafkaSourceConfiguration.KAFKA_START_DATE_FORMAT).withZoneUTC()
             ).toDate().getTime();
+        } else {
+            throw new MissingPropertyException(String.format("property %s OR %s must be specified.",
+                    KAFKA_START_TIME, KAFKA_START_DATE));
+        }
+
+        if (this.startTime < (TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()) - MAX_KAFKA_LOOKBACK_SEC)) {
+            log.error("Invalid Kafka start time/date ({})  - please specify a more recent start time.", this.startTime);
+            throw new RuntimeException("Invalid kafka start time/date");
+        }
     }
 
     public List<String> getMandatoryProperties() {
@@ -69,12 +96,15 @@ public class KafkaSourceConfiguration extends KafkaConfiguration {
         ret.addAll(super.getMandatoryProperties());
         ret.add(KAFKA_TOPIC_NAME);
         ret.add(KAFKA_CLUSTER_NAME);
-        ret.add(KAFKA_START_DATE);
         return ret;
     }
 
     public int getReadParallelism() {
         return Math.max(1, getConf().getIntProperty(KAFKA_READ_PARALLELISM, 1));
+    }
+
+    public boolean isParallelBrokerReadEnabled() {
+        return this.getConf().getBooleanProperty(USE_PARALLEL_BROKER_READ, DEFAULT_USE_PARALLEL_BROKER_READ);
     }
 
     public long getMaxMessagesToRead() {

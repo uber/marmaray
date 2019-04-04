@@ -16,11 +16,16 @@
  */
 package com.uber.marmaray.common.sources.hive;
 
+import com.google.common.base.Optional;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.HiveSourceConfiguration;
 import com.uber.marmaray.common.converters.data.SparkSourceDataConverter;
+import com.uber.marmaray.common.exceptions.JobRuntimeException;
+import com.uber.marmaray.common.metrics.DataFeedMetricNames;
 import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.ErrorCauseTagNames;
 import com.uber.marmaray.common.metrics.JobMetrics;
+import com.uber.marmaray.common.metrics.ModuleTagNames;
 import com.uber.marmaray.common.sources.ISource;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -34,7 +39,6 @@ import org.apache.spark.sql.SQLContext;
 import parquet.Preconditions;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -48,10 +52,28 @@ public class HiveSource implements ISource<ParquetWorkUnitCalculatorResult, Hive
 
     private final SparkSourceDataConverter converter;
 
-    public void setDataFeedMetrics(final DataFeedMetrics dataFeedMetrics) {
-        // ignored
+    @Getter
+    private long inputCount;
+
+    @Getter
+    private Optional<DataFeedMetrics> dataFeedMetrics = Optional.absent();
+
+    public HiveSource(@NonNull final HiveSourceConfiguration hiveConf,
+                      @NonNull final SQLContext sqlContext,
+                      @NonNull final SparkSourceDataConverter converter) {
+        this.hiveConf = hiveConf;
+        this.sqlContext = sqlContext;
+        this.converter = converter;
+        this.inputCount = 0;
     }
 
+    @Override
+    public void setDataFeedMetrics(final DataFeedMetrics dataFeedMetrics) {
+        this.converter.setDataFeedMetrics(dataFeedMetrics);
+        this.dataFeedMetrics = Optional.of(dataFeedMetrics);
+    }
+
+    @Override
     public void setJobMetrics(final JobMetrics jobMetrics) {
         // ignored
     }
@@ -70,22 +92,26 @@ public class HiveSource implements ISource<ParquetWorkUnitCalculatorResult, Hive
         final String hdfsPath = new Path(this.hiveConf.getDataPath(), workUnits.get(0)).toString();
 
         log.info("Reading data from path: {}", hdfsPath);
-
-        final Dataset<Row> data = this.sqlContext.read().parquet(hdfsPath);
+        final Dataset<Row> data;
+        try {
+            data = this.sqlContext.read().parquet(hdfsPath);
+            this.inputCount = data.count();
+        } catch (Exception e) {
+            if (this.dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                        DataFeedMetricNames.getErrorModuleCauseTags(
+                                ModuleTagNames.SOURCE, ErrorCauseTagNames.FILE_PATH));
+            }
+            log.error(String.format("Error reading from source path"), e);
+            throw new JobRuntimeException(e);
+        }
 
         final int numPartitions = calculateHiveNumPartitions(data);
-
         log.info("Using {} partitions", numPartitions);
 
-        final JavaRDD<AvroPayload> hiveRawData = data
+        return this.converter.map(data
                 .coalesce(numPartitions)
-                .javaRDD()
-                .flatMap(row -> {
-                        final List<AvroPayload> payloads = new ArrayList<>();
-                        this.converter.convert(row).forEach(d -> payloads.add(d.getSuccessData().get().getData()));
-                        return payloads.iterator();
-                    });
-        return hiveRawData;
+                .javaRDD()).getData();
     }
 
     private int calculateHiveNumPartitions(@NonNull final Dataset<Row> data) {

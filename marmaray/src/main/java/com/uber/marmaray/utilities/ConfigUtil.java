@@ -46,7 +46,7 @@ public final class ConfigUtil {
         mandatoryProps.stream().forEach(
             prop -> {
                 if (!conf.getProperty(prop).isPresent()) {
-                    log.error("Missing property:{}", prop);
+                    log.error("Missing property:{} existing conf:{}", prop, conf);
                     throw new MissingPropertyException("property:" + prop);
                 }
             });

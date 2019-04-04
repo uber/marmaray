@@ -19,6 +19,7 @@ package com.uber.marmaray.common.metrics;
 import com.google.common.base.Preconditions;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.validator.constraints.NotEmpty;
 
@@ -34,6 +35,7 @@ import java.util.Map;
  */
 @Slf4j
 @Getter
+@ToString
 public class TimerMetric extends LongMetric {
     private final Instant startTime;
     private Instant endTime;

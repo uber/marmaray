@@ -27,7 +27,7 @@ import java.util.List;
 
 public class HDFSSchemaServiceConfiguration implements Serializable {
 
-    public static final String HDFS_SCHEMA_SERVICE_PREFIX = Configuration.MARMARAY_PREFIX + "hdfs_schema_service.";
+    public static final String HDFS_SCHEMA_SERVICE_PREFIX = Configuration.MARMARAY_PREFIX + "hdfs_schema_service";
     public static final String PATH = HDFS_SCHEMA_SERVICE_PREFIX + "path";
 
     private final Configuration conf;

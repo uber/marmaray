@@ -25,11 +25,16 @@ import com.uber.marmaray.utilities.SchemaUtil;
 import com.uber.marmaray.utilities.TimestampInfo;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.HashSet;
+
+import static com.uber.marmaray.common.schema.cassandra.CassandraSchemaField.TIMESTAMP_TYPE;
 
 public class TestCassandraSchemaConverter {
     @Test
@@ -90,7 +95,7 @@ public class TestCassandraSchemaConverter {
                 .name("field0").type().intType().noDefault()
                 .endRecord();
 
-        final TimestampInfo tsInfo = new TimestampInfo(Optional.of("10000"), false);
+        final TimestampInfo tsInfo = new TimestampInfo(Optional.of("10000"), false, "testTimestamp");
         final CassandraSchemaConverter converter = new CassandraSchemaConverter("testKeyspace",
                 "testTableName", tsInfo, Optional.absent());
         final CassandraSchema cassSchema = converter.convertToExternalSchema(record);
@@ -103,10 +108,22 @@ public class TestCassandraSchemaConverter {
                 SchemaTestUtil.getSchema(CassandraSchemaField.INT_TYPE)), intField.getType());
 
         final CassandraSchemaField timestampField = cassSchema.getFields().get(1);
-        Assert.assertEquals(SchemaUtil.DISPERSAL_TIMESTAMP, timestampField.getFieldName());
+        Assert.assertEquals("testTimestamp", timestampField.getFieldName());
         Assert.assertEquals(CassandraSchemaField.convertFromAvroType(
                 SchemaTestUtil.getSchema(CassandraSchemaField.STRING_TYPE)),
                 timestampField.getType());
+    }
+
+    @Test
+    public void testConvertCommonToCassandraSchemaWithTimestampType() {
+        final Schema record = SchemaBuilder.record("commonSchema")
+            .fields()
+            .name("ts").type(SchemaUtil.getTimestampSchema(true)).noDefault()
+            .endRecord();
+        final CassandraSchemaConverter converter = new CassandraSchemaConverter("testKeyspace",
+            "testTableName", Optional.absent());
+        final CassandraSchema cassSchema = converter.convertToExternalSchema(record);
+        Assert.assertEquals(TIMESTAMP_TYPE, cassSchema.getFields().get(0).getType());
     }
 
     @Test
