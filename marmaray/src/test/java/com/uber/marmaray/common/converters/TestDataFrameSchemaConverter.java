@@ -24,6 +24,9 @@ import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static com.uber.marmaray.utilities.SchemaUtil.TIMESTAMP_PROPERTY;
+import static com.uber.marmaray.utilities.SchemaUtil.TRUE;
+
 public class TestDataFrameSchemaConverter {
 
     private static final String INT_TYPE = "intType";
@@ -85,7 +88,8 @@ public class TestDataFrameSchemaConverter {
                     Assert.assertEquals(field.schema().getType(), Schema.Type.BYTES);
                     break;
                 case TIMESTAMP_TYPE:
-                    Assert.assertEquals(field.schema().getType(), Schema.Type.STRING);
+                    Assert.assertEquals(field.schema().getType(), Schema.Type.LONG);
+                    Assert.assertEquals(field.schema().getProp(TIMESTAMP_PROPERTY), TRUE);
                     break;
                 case SHORT_TYPE:
                     Assert.assertEquals(field.schema().getType(), Schema.Type.INT);

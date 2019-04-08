@@ -17,6 +17,9 @@
 package com.uber.marmaray.common.metadata;
 
 import com.google.common.base.Optional;
+import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.IMetricable;
+import com.uber.marmaray.common.metrics.JobMetrics;
 import lombok.NonNull;
 
 import java.io.IOException;
@@ -32,10 +35,16 @@ import java.util.Set;
  * while other metadata managers will write through the changes when {@link IMetadataManager#set(String, AbstractValue)}
  * is invoked.  Please see the comments and details for each implementation for further details.
  */
-public interface IMetadataManager<T extends AbstractValue> extends Serializable {
+public interface IMetadataManager<T extends AbstractValue> extends Serializable, IMetricable {
     void set(@NonNull final String key, @NonNull final T value);
     Optional<T> remove(@NonNull final String key);
     Optional<T> get(@NonNull final String key);
     void saveChanges() throws IOException;
     Set<String> getAllKeys();
+
+    @Override
+    void setDataFeedMetrics(@NonNull final DataFeedMetrics dataFeedMetrics);
+
+    @Override
+    void setJobMetrics(@NonNull final JobMetrics jobMetrics);
 }

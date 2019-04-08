@@ -16,13 +16,13 @@
  */
 package com.uber.marmaray.common.job;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.uber.marmaray.common.actions.IJobDagAction;
 import com.uber.marmaray.common.actions.JobDagActions;
 import com.uber.marmaray.common.configuration.Configuration;
-import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.exceptions.MetadataException;
 import com.uber.marmaray.common.metadata.JobManagerMetadataTracker;
@@ -32,25 +32,22 @@ import com.uber.marmaray.common.metrics.TimerMetric;
 import com.uber.marmaray.common.reporters.ConsoleReporter;
 import com.uber.marmaray.common.reporters.IReporter;
 import com.uber.marmaray.common.reporters.Reporters;
+import com.uber.marmaray.common.spark.SparkFactory;
+import com.uber.marmaray.common.status.IStatus;
+import com.uber.marmaray.common.status.JobManagerStatus;
 import com.uber.marmaray.utilities.LockManager;
-import com.uber.marmaray.utilities.SparkUtil;
-import com.uber.marmaray.utilities.listener.SparkEventListener;
 import com.uber.marmaray.utilities.listener.SparkJobTracker;
 import com.uber.marmaray.utilities.listener.TimeoutManager;
-
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.avro.Schema;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.avro.mapred.Pair;
 import org.hibernate.validator.constraints.NotEmpty;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Future;
@@ -74,28 +71,24 @@ public final class JobManager {
     private static final Object lock = new Object();
 
     @NonNull
-    private final Queue<JobDag> jobDags = new ConcurrentLinkedDeque<>();
+    private final Queue<Dag> jobDags = new ConcurrentLinkedDeque<>();
     private final JobDagActions postJobManagerActions;
     @Getter
     private final Configuration conf;
 
     @NotEmpty
     private final String appName;
-    private String appId;
-    private Optional<JavaSparkContext> sparkContext = Optional.absent();
+    private final String appId;
     private final JobLockManager jobLockManager;
-
-    @Getter
-    private final List<Schema> schemas = new ArrayList<>();
-
-    @Getter
-    private final List<Class> serializationClasses = new LinkedList<>();
 
     @Getter
     private final JobMetrics jobMetrics;
 
     @Getter
     private final Reporters reporters;
+
+    @Getter
+    private final SparkFactory sparkFactory;
 
     @Getter @Setter
     private JobManagerMetadataTracker tracker;
@@ -106,15 +99,26 @@ public final class JobManager {
     @Setter
     private Optional<IJobExecutionStrategy> jobExecutionStrategy = Optional.absent();
 
+    @Getter
+    private final JobManagerStatus jobManagerStatus;
+
     private JobManager(@NonNull final Configuration conf, @NotEmpty final String appName,
-            @NotEmpty final String frequency, final boolean shouldLockFrequency) {
+        @NotEmpty final String frequency, final boolean shouldLockFrequency,
+        @NonNull final SparkFactory sparkFactory, @NonNull final Reporters reporters,
+        @NonNull final JobManagerStatus jobManagerStatus) {
+        if (sparkFactory.getSparkArgs().getAvroSchemas().isEmpty()) {
+            log.warn("Schemas must be added to SparkArgs before creating sparkContext. Found no schemas");
+        }
         this.conf = conf;
         this.appName = appName;
         this.jobMetrics = new JobMetrics(appName);
-        this.reporters = new Reporters();
+        this.reporters = reporters;
+        this.sparkFactory = sparkFactory;
         this.reporters.addReporter(new ConsoleReporter());
         this.jobLockManager = new JobLockManager(conf, frequency, shouldLockFrequency);
         this.postJobManagerActions = new JobDagActions(this.reporters, "jobManager");
+        this.appId = sparkFactory.getSparkContext().sc().applicationId();
+        this.jobManagerStatus = jobManagerStatus;
     }
 
     /**
@@ -123,13 +127,20 @@ public final class JobManager {
      * @param appName Name of the application, used in the SparkContext
      * @param frequency name of the frequency, used to lock entire frequencies
      * @param lockFrequency whether the frequency should be locked
+     * @param sparkFactory to provide {@link JavaSparkContext}
+     * @param reporters to report metrics
+     * @param jobManagerStatus to report status
      */
-    public static JobManager createJobManager(@NonNull final Configuration conf, @NotEmpty final String appName,
-            @NotEmpty final String frequency, final boolean lockFrequency) {
+    public static JobManager createJobManager(@NonNull final Configuration conf,
+        @NotEmpty final String appName,
+        @NotEmpty final String frequency, final boolean lockFrequency,
+        @NonNull final SparkFactory sparkFactory, @NonNull final Reporters reporters,
+        @NonNull final JobManagerStatus jobManagerStatus) {
         synchronized (lock) {
             Preconditions.checkState(instance == null,
-                "JobManager was already created");
-            instance = new JobManager(conf, appName, frequency, lockFrequency);
+                    "JobManager was already created");
+            instance = new JobManager(conf, appName, frequency, lockFrequency, sparkFactory,
+                    reporters, jobManagerStatus);
         }
         return instance;
     }
@@ -139,43 +150,46 @@ public final class JobManager {
      * @param conf Configuration for the job manager, used to determine parallelism of execution
      * @param appName Name of the application, used in the SparkContext
      * @param frequency name of the frequency, used to lock entire frequencies
+     * @param lockFrequency whether the frequency should be locked
+     * @param sparkFactory to provide {@link JavaSparkContext}
+     * @param reporters to report metrics
      */
-    public static JobManager createJobManager(@NonNull final Configuration conf, @NotEmpty final String appName,
-            @NotEmpty final String frequency) {
-        return createJobManager(conf, appName, frequency, DEFAULT_LOCK_FREQUENCY);
+    public static JobManager createJobManager(@NonNull final Configuration conf,
+        @NotEmpty final String appName,
+        @NotEmpty final String frequency, final boolean lockFrequency,
+        @NonNull final SparkFactory sparkFactory, @NonNull final Reporters reporters) {
+        return createJobManager(conf, appName, frequency, lockFrequency, sparkFactory,
+                reporters, new JobManagerStatus());
     }
 
     /**
-     * Creates JavaSparkContext if its hasn't been created yet, or returns the instance. {@link #addSchema(Schema)} and
-     * {@link #addSchemas(Collection)} must not be called once the JavaSparkContext has been created
-     * @return the JavaSparkContext that will be used to execute the JobDags
+     * Create the JobManager. Will fail if the job manager has already been created.
+     * @param conf Configuration for the job manager, used to determine parallelism of execution
+     * @param appName Name of the application, used in the SparkContext
+     * @param frequency name of the frequency, used to lock entire frequencies
+     * @param sparkFactory to provide {@link JavaSparkContext}
+     * @param reporters to report metrics
      */
-    public JavaSparkContext getOrCreateSparkContext() {
-        if (!this.sparkContext.isPresent()) {
-            this.sparkContext = Optional.of(new JavaSparkContext(
-                    SparkUtil.getSparkConf(
-                        this.appName, Optional.of(this.schemas), this.serializationClasses, this.conf)));
-            this.sparkContext.get().sc().addSparkListener(new SparkEventListener());
-            // Adding hadoop configuration to default
-            this.sparkContext.get().sc().hadoopConfiguration().addResource(
-                new HadoopConfiguration(conf).getHadoopConf());
-            this.appId = this.sparkContext.get().sc().applicationId();
-        }
-        return this.sparkContext.get();
+    public static JobManager createJobManager(@NonNull final Configuration conf,
+        @NotEmpty final String appName,
+        @NotEmpty final String frequency, @NonNull final SparkFactory sparkFactory,
+        final Reporters reporters) {
+        return createJobManager(conf, appName, frequency, DEFAULT_LOCK_FREQUENCY, sparkFactory,
+            reporters, new JobManagerStatus());
     }
 
     /**
      * Execute all registered {@link JobDag}, then perform all registered {@link IJobDagAction}
      */
     public void run() {
-        final Queue<Future> futures = new ConcurrentLinkedDeque<>();
+        final Queue<Future<Pair<String, IStatus>>> futures = new ConcurrentLinkedDeque<>();
         final AtomicBoolean isSuccess = new AtomicBoolean(true);
         // ensure the SparkContext has been created
-        final JavaSparkContext sc = getOrCreateSparkContext();
         Preconditions.checkState(!this.jobDags.isEmpty(), "No job dags to execute");
-        TimeoutManager.init(this.conf, sc.sc());
+        final JavaSparkContext javaSparkContext = sparkFactory.getSparkContext();
+        TimeoutManager.init(this.conf, javaSparkContext.sc());
         final boolean hasMultipleDags = this.jobDags.size() > 1;
-        final Queue<JobDag> runtimeJobDagOrder;
+        final Queue<Dag> runtimeJobDagOrder;
         if (hasMultipleDags && this.jobExecutionStrategy.isPresent()) {
             runtimeJobDagOrder = new ConcurrentLinkedDeque<>(this.jobExecutionStrategy.get().sort(this.jobDags));
         } else {
@@ -186,44 +200,56 @@ public final class JobManager {
             runtimeJobDagOrder.forEach(jobDag ->
                     futures.add(ThreadPoolService.submit(
                         () -> {
-                            SparkJobTracker.setJobName(sc.sc(), jobDag.getDataFeedName());
+                            SparkJobTracker.setJobName(javaSparkContext.sc(), jobDag.getDataFeedName());
                             if (hasMultipleDags) {
-                                setSparkStageName(sc, jobDag.getDataFeedName());
+                                setSparkStageName(javaSparkContext, jobDag.getDataFeedName());
                             }
-                            jobDag.execute();
-                            return null;
+                            final IStatus status = jobDag.execute();
+                            this.jobManagerStatus.addJobStatus(jobDag.getJobName(), status);
+                            return new Pair<>(jobDag.getJobName(), status);
                         }, ThreadPoolServiceTier.JOB_DAG_TIER)));
+
             TimeoutManager.getInstance().startMonitorThread();
             futures.forEach(future -> {
                     try {
-                        future.get();
+                        final Optional<Pair<String, IStatus>> result = Optional.fromNullable(future.get());
+                        IStatus.Status status = result.get().value().getStatus();
+                        log.info("job dag, name: {}, status: {}",
+                                 result.get().key(), status.name());
+                        if (IStatus.Status.FAILURE.equals(status)) {
+                            log.error("Unsuccessful run, jobdag: {}", result.get().key());
+                            isSuccess.set(false);
+                        }
                     } catch (Exception e) {
                         log.error("Error running job", e);
                         isSuccess.set(false);
+                        this.jobManagerStatus.setStatus(IStatus.Status.FAILURE);
+                        this.jobManagerStatus.addException(e);
                     }
                 }
             );
-
+            if (TimeoutManager.getInstance().getTimedOut()) {
+                log.error("Time out error while running job.");
+                isSuccess.set(false);
+            }
+            // if we're not reporting success/failure through status, we need to throw an exception on failure
             if (!isSuccess.get()) {
                 throw new JobRuntimeException("Error while running job.  Look at previous log entries for detail");
             }
         } catch (final Throwable t) {
+            log.error("Failed in JobManager", t);
             isSuccess.set(false);
-            throw t;
+            this.jobManagerStatus.setStatus(IStatus.Status.FAILURE);
+            if (t instanceof Exception) {
+                // trap exceptions and add them to the status
+                this.jobManagerStatus.addException((Exception) t);
+            } else {
+                // let errors be thrown
+                throw t;
+            }
         } finally {
             this.postJobManagerActions.execute(isSuccess.get());
-            ThreadPoolService.shutdown(!isSuccess.get());
-            if (this.isJobManagerMetadataEnabled()) {
-                jobDags.forEach(jobDag -> this.getTracker().set(jobDag.getDataFeedName(),
-                        jobDag.getJobManagerMetadata()));
-                try {
-                    this.getTracker().writeJobManagerMetadata();
-                } catch (MetadataException e) {
-                    log.error("Unable to save metadata: {}", e.getMessage());
-                }
-            }
-            sc.stop();
-            this.jobLockManager.stop();
+            shutdown(!isSuccess.get());
             this.reporters.getReporters().forEach(IReporter::finish);
         }
     }
@@ -232,7 +258,7 @@ public final class JobManager {
      * Add {@link JobDag} to be executed on {@link #run()}
      * @param jobDag JobDag to be added
      */
-    public void addJobDag(@NonNull final JobDag jobDag) {
+    public void addJobDag(@NonNull final Dag jobDag) {
         if (jobLockManager.lockDag(jobDag.getJobName(), jobDag.getDataFeedName())) {
             this.jobDags.add(jobDag);
         } else {
@@ -264,35 +290,29 @@ public final class JobManager {
         actions.forEach(this::addPostJobManagerAction);
     }
 
-    /**
-     * Add schema for registration into {@link JavaSparkContext}. Must not be called after the JavaSparkContext has been
-     * created.
-     * @param schema schema to register into spark context
+    /* Reset the singleton, shutting down any running spark or threads
      */
-    public void addSchema(@NonNull final Schema schema) {
-        Preconditions.checkState(!this.sparkContext.isPresent(),
-                "Schemas must be added before sparkContext is instantiated");
-        this.schemas.add(schema);
+    @VisibleForTesting
+    public static void reset() {
+        if (instance != null) {
+            instance.shutdown(true);
+            instance = null;
+        }
     }
 
-    /**
-     * Add serialization classes for registration into {@link JavaSparkContext}. Must not be called after the
-     * {@link JavaSparkContext} have been created.
-     * @param serializationClasses serialization classes
-     */
-    public void addSerializationClasses(@NonNull final List<Class> serializationClasses) {
-        Preconditions.checkState(!this.sparkContext.isPresent(),
-            "Serialization classes must be added before sparkContext is instantiated");
-        this.serializationClasses.addAll(serializationClasses);
-    }
-
-    /**
-     * Add Collection of schemas for registration into {@link JavaSparkContext}. Must not be called after the
-     * JavaSparkContext has been created.
-     * @param schemas collection of schemas to register
-     */
-    public void addSchemas(@NonNull final Collection<? extends Schema> schemas) {
-        schemas.forEach(this::addSchema);
+    private void shutdown(final boolean forceShutdown) {
+        ThreadPoolService.shutdown(forceShutdown);
+        if (this.isJobManagerMetadataEnabled()) {
+            this.jobDags.forEach(jobDag -> this.getTracker().set(jobDag.getDataFeedName(),
+                jobDag.getJobManagerMetadata()));
+            try {
+                this.getTracker().writeJobManagerMetadata();
+            } catch (MetadataException e) {
+                log.error("Unable to save metadata: {}", e.getMessage());
+            }
+        }
+        this.sparkFactory.stop();
+        this.jobLockManager.stop();
     }
 
     private static void setSparkStageName(@NonNull final JavaSparkContext jsc, @NotEmpty final String dataFeedName) {
@@ -344,17 +364,17 @@ public final class JobManager {
             this.dagTimerMetricMap = new HashMap<>();
         }
 
-        private boolean lockDag(@NotEmpty final String jobName, @NotEmpty final String dagName) {
-            final String key = LockManager.getLockKey(DAG_LOCK_KEY, dagName);
+        private boolean lockDag(@NotEmpty final String jobDagName, @NotEmpty final String dataFeedName) {
+            final String key = LockManager.getLockKey(DAG_LOCK_KEY, jobDagName + "_" + dataFeedName);
             final TimerMetric timerMetric = new TimerMetric(JobMetricNames.JOB_DAG_LOCK_TIME_MS,
                     ImmutableMap.of(
                             JOB_FREQUENCY_TAG, jobFrequency,
-                            JOB_NAME_TAG, jobName,
-                            DATA_FEED_TAG, dagName));
+                            JOB_NAME_TAG, jobDagName,
+                            DATA_FEED_TAG, dataFeedName));
             final boolean success = lockManager.lock(key,
-                    String.format("JobDag %s AppId %s", dagName, appId));
+                    String.format("JobDag %s AppId %s", dataFeedName, appId));
             timerMetric.stop();
-            dagTimerMetricMap.put(dagName, timerMetric);
+            dagTimerMetricMap.put(dataFeedName, timerMetric);
             return success;
         }
 

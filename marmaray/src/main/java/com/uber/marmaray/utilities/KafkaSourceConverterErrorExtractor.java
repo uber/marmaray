@@ -28,11 +28,6 @@ import javax.xml.bind.DatatypeConverter;
 public class KafkaSourceConverterErrorExtractor extends ErrorExtractor {
 
     @Override
-    public String getRowKey(@NonNull final RawData rawdata) {
-        return DEFAULT_ROW_KEY;
-    }
-
-    @Override
     public String getChangeLogColumns(@NonNull final RawData rawdata) {
         return DEFAULT_CHANGELOG_COLUMNS;
     }

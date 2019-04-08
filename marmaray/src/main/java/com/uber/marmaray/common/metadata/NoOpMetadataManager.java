@@ -17,6 +17,8 @@
 package com.uber.marmaray.common.metadata;
 
 import com.google.common.base.Optional;
+import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.JobMetrics;
 import lombok.NonNull;
 import org.hibernate.validator.constraints.NotEmpty;
 
@@ -25,6 +27,15 @@ import java.util.Collections;
 import java.util.Set;
 
 public class NoOpMetadataManager implements IMetadataManager<StringValue> {
+
+    @Override
+    public void setDataFeedMetrics(@NonNull final DataFeedMetrics dataFeedMetrics) {
+    }
+
+    @Override
+    public void setJobMetrics(@NonNull final JobMetrics jobMetrics) {
+    }
+
     @Override
     public void set(@NotEmpty final String key, @NonNull final StringValue value) {
         // no-op

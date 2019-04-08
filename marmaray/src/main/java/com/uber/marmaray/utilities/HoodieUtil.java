@@ -16,6 +16,7 @@
  */
 package com.uber.marmaray.utilities;
 
+import com.google.common.base.Optional;
 import com.uber.hoodie.common.model.HoodieRecord;
 import com.uber.hoodie.common.model.HoodieRecordPayload;
 import com.uber.hoodie.common.table.HoodieTableConfig;
@@ -53,7 +54,8 @@ public final class HoodieUtil {
                 HoodieTableConfig.HOODIE_PROPERTIES_FILE);
         if (!fs.exists(hoodiePropertiesFile)) {
             HoodieTableMetaClient
-                    .initializePathAsHoodieDataset(FSUtils.getFs(hoodieConf.getConf()),
+                    .initializePathAsHoodieDataset(FSUtils.getFs(hoodieConf.getConf(),
+                            Optional.of(hoodieConf.getBasePath())),
                         hoodieConf.getBasePath(), hoodieConf.getHoodieInitProperties());
         }
     }

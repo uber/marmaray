@@ -59,7 +59,7 @@ public class TestExecutionTimeJobExecutionStrategy {
         final JobManagerMetadataTracker tracker = mock(JobManagerMetadataTracker.class);
         when(tracker.get(any())).then(new ConfigurationAnswer());
         final IJobExecutionStrategy strategy = new ExecutionTimeJobExecutionStrategy(tracker);
-        final Queue<JobDag> jobDagQueue = new ConcurrentLinkedDeque<>();
+        final Queue<Dag> jobDagQueue = new ConcurrentLinkedDeque<>();
         final JobDag jobDag1 = mockJobDag("dag1");
         jobDagQueue.add(jobDag1);
         final JobDag jobDag3 = mockJobDag("dag3");
@@ -70,8 +70,8 @@ public class TestExecutionTimeJobExecutionStrategy {
         jobDagQueue.add(jobDag4);
         final JobDag jobDag5 = mockJobDag("dag5");
         jobDagQueue.add(jobDag5);
-        final List<JobDag> resultQueue = strategy.sort(jobDagQueue);
-        final List<JobDag> expectedQueue = new ArrayList<>(jobDagQueue.size());
+        final List<Dag> resultQueue = strategy.sort(jobDagQueue);
+        final List<Dag> expectedQueue = new ArrayList<>(jobDagQueue.size());
         // first jobs with no history and/or no success in 6 hours
         expectedQueue.add(jobDag3);
         expectedQueue.add(jobDag4);
@@ -82,7 +82,7 @@ public class TestExecutionTimeJobExecutionStrategy {
         assertListEquals(expectedQueue, resultQueue);
     }
 
-    private void assertListEquals(final List<JobDag> expectedList, final List<JobDag> resultList) {
+    private void assertListEquals(final List<Dag> expectedList, final List<Dag> resultList) {
         assertEquals(String.format("Size of queues mismatched: %s vs %s", expectedList, resultList)
                 , expectedList.size(), resultList.size());
         for (int i = 0; i < expectedList.size(); i++) {

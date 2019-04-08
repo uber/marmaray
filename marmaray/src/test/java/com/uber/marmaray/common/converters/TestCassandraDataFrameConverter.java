@@ -17,7 +17,9 @@
 package com.uber.marmaray.common.converters;
 
 import com.google.common.base.Optional;
+import com.google.common.collect.ImmutableList;
 import com.uber.marmaray.common.AvroPayload;
+import com.uber.marmaray.common.configuration.CassandraSinkConfiguration;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.converters.data.CassandraSinkDataConverter;
 import com.uber.marmaray.common.schema.cassandra.CassandraDataField;
@@ -35,6 +37,8 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.spark.api.java.JavaRDD;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static com.uber.marmaray.common.util.CassandraTestConstants.CONFIGURATION;
 
 public class TestCassandraDataFrameConverter extends AbstractSparkTest {
 
@@ -64,7 +68,8 @@ public class TestCassandraDataFrameConverter extends AbstractSparkTest {
         final JavaRDD<AvroPayload> payloadRDD = this.jsc.get().parallelize(records);
 
         final CassandraSinkDataConverter csdc = new CassandraSinkDataConverter(avroSchema,
-                new Configuration(),
+                CONFIGURATION,
+                Optional.absent(),
                 Optional.absent(),
                 Collections.EMPTY_LIST,
                 TimestampInfo.generateEmptyTimestampInfo(), new ErrorExtractor());

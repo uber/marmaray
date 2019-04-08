@@ -16,38 +16,22 @@
  */
 package com.uber.marmaray.common.sinks.cassandra;
 
-import static com.uber.marmaray.common.util.CassandraTestConstants.KEY_SPACE;
-import static com.uber.marmaray.common.util.CassandraTestConstants.TABLE;
-
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.Row;
-import com.datastax.driver.core.Session;
-import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.CassandraSinkConfiguration;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.converters.data.CassandraSinkCQLDataConverter;
-import com.uber.marmaray.common.converters.data.CassandraSinkDataConverter;
 import com.uber.marmaray.common.converters.schema.CassandraSchemaConverter;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.schema.cassandra.CassandraSchema;
 import com.uber.marmaray.common.schema.cassandra.CassandraSinkSchemaManager;
 import com.uber.marmaray.common.schema.cassandra.ClusterKey;
-import com.uber.marmaray.common.util.AbstractSparkTest;
 import com.uber.marmaray.common.util.AvroPayloadUtil;
 import com.uber.marmaray.common.util.CassandraTestConstants;
 import com.uber.marmaray.common.util.CassandraTestUtil;
 import com.uber.marmaray.utilities.ErrorExtractor;
-import com.uber.marmaray.utilities.SchemaUtil;
 import com.uber.marmaray.utilities.StringTypes;
 import com.uber.marmaray.utilities.TimestampInfo;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.Schema;
 import org.apache.spark.SparkException;
@@ -57,6 +41,15 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+
+import static com.uber.marmaray.common.util.CassandraTestConstants.KEY_SPACE;
+import static com.uber.marmaray.common.util.CassandraTestConstants.TABLE;
 
 @Slf4j
 public class TestCassandraClientSink extends TestCassandraSinkUtil {
@@ -139,7 +132,7 @@ public class TestCassandraClientSink extends TestCassandraSinkUtil {
         final CassandraSchema cassandraSchema = schemaConverter.convertToExternalSchema(avroSchema);
 
         final CassandraSinkSchemaManager schemaManager =
-                new CassandraSinkSchemaManager(cassandraSchema, partitionKeys, clusteringKeys);
+                new CassandraSinkSchemaManager(cassandraSchema, partitionKeys, clusteringKeys, Optional.absent());
 
         final CassandraSinkConfiguration conf = initializeConfiguration(false, includeTimestamp);
         final CassandraClientSink sink = new CassandraClientSink(converter, schemaManager, conf);
@@ -166,7 +159,8 @@ public class TestCassandraClientSink extends TestCassandraSinkUtil {
         final List<String> requiredFields = Arrays.asList(schemaFields.get(0), schemaFields.get(1));
 
         final Optional<String> timestamp = addLongTimestamp ? Optional.of(TEST_TIMESTAMP) : Optional.absent();
-        final TimestampInfo tsInfo = new TimestampInfo(timestamp, true);
+        final TimestampInfo tsInfo = new TimestampInfo(timestamp, true,
+          CassandraSinkConfiguration.DEFAULT_DISPERSAL_TIMESTAMP_FIELD_NAME);
 
         final CassandraSinkCQLDataConverter converter =
                 new CassandraSinkCQLDataConverter(AvroPayloadUtil.getAvroTestDataSchema(StringTypes.EMPTY),
@@ -182,7 +176,7 @@ public class TestCassandraClientSink extends TestCassandraSinkUtil {
         final Optional<Long> ttl = Optional.of(10000L);
 
         final CassandraSinkSchemaManager schemaManager =
-                new CassandraSinkSchemaManager(schema, partitionKeys, clusteringKeys, ttl);
+                new CassandraSinkSchemaManager(schema, partitionKeys, clusteringKeys, ttl, Optional.absent(), Optional.absent(), false);
 
         final CassandraSinkConfiguration conf = initializeConfiguration(false, addLongTimestamp);
         final CassandraClientSink sink = new CassandraClientSink(converter, schemaManager, conf);
@@ -206,7 +200,8 @@ public class TestCassandraClientSink extends TestCassandraSinkUtil {
         final Schema avroSchema = AvroPayloadUtil.getAvroTestDataSchema(CassandraTestConstants.BOOLEAN_FIELD);
 
         final Optional<String> timestamp = addStringTimestamp ? Optional.of(TEST_TIMESTAMP) : Optional.absent();
-        final TimestampInfo tsInfo = new TimestampInfo(timestamp, false);
+        final TimestampInfo tsInfo = new TimestampInfo(timestamp, false,
+          CassandraSinkConfiguration.DEFAULT_DISPERSAL_TIMESTAMP_FIELD_NAME);
 
         final CassandraSinkCQLDataConverter converter =
                 new CassandraSinkCQLDataConverter(
@@ -220,7 +215,7 @@ public class TestCassandraClientSink extends TestCassandraSinkUtil {
         final CassandraSchema schema = schemaConverter.convertToExternalSchema(avroSchema);
 
         final CassandraSinkSchemaManager schemaManager =
-                new CassandraSinkSchemaManager(schema, partitionKeys, clusteringKeys);
+                new CassandraSinkSchemaManager(schema, partitionKeys, clusteringKeys, Optional.absent());
 
         final CassandraSinkConfiguration conf = initializeConfiguration(true, addStringTimestamp);
         final CassandraClientSink sink = new CassandraClientSink(converter, schemaManager, conf);

@@ -21,6 +21,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.util.concurrent.TimeUnit;
+
 import lombok.NonNull;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -37,12 +39,14 @@ import org.hibernate.validator.constraints.NotEmpty;
  * {@link CommandLineUtil} provides utility methods to interact with the command line
  */
 public class CommandLineUtil {
-    public static String executeCommand(@NotEmpty final String cmd) {
+    public static String executeCommand(@NotEmpty final String cmd,
+                                        final long timeout,
+                                        @NonNull final TimeUnit unit) {
         final StringBuffer outputBuffer = new StringBuffer();
 
         try {
             final Process process = Runtime.getRuntime().exec(cmd);
-            process.waitFor();
+            process.waitFor(timeout, unit);
 
             String line;
             try (final BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
@@ -52,6 +56,7 @@ public class CommandLineUtil {
             }
         } catch (IOException | InterruptedException e) {
             throw new JobRuntimeException("Exception occurred while executing command: " + cmd
+                    + " , timeout: " + String.valueOf(timeout) + ", unit: " + unit.name()
                     + " Error Message: " + e.getMessage(), e);
         }
 

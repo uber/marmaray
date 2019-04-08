@@ -16,6 +16,7 @@
  */
 package com.uber.marmaray.utilities.listener;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.spark.scheduler.SparkListener;
 import org.apache.spark.scheduler.SparkListenerApplicationEnd;
 import org.apache.spark.scheduler.SparkListenerStageCompleted;
@@ -25,19 +26,18 @@ import org.apache.spark.scheduler.SparkListenerTaskStart;
 import org.apache.spark.scheduler.StageInfo;
 import org.apache.spark.scheduler.TaskInfo;
 
-import lombok.extern.slf4j.Slf4j;
-
 @Slf4j
 public class SparkEventListener extends SparkListener {
 
     @Override
     public void onStageSubmitted(final SparkListenerStageSubmitted stageSubmitted) {
+        TimeoutManager.getInstance().stageStarted(stageSubmitted.stageInfo().stageId());
         SparkJobTracker.recordStageInfo(stageSubmitted.stageInfo(), stageSubmitted.properties());
     }
 
     @Override
     public void onStageCompleted(final SparkListenerStageCompleted stageCompleted) {
-        TimeoutManager.getInstance().setLastEventTime(stageCompleted.stageInfo().stageId());
+        TimeoutManager.getInstance().stageFinished(stageCompleted.stageInfo().stageId());
         final StageInfo stageInfo = stageCompleted.stageInfo();
         if (stageInfo.completionTime().isDefined() && stageInfo.submissionTime().isDefined()) {
             SparkJobTracker.recordStageTime(stageInfo,
@@ -52,13 +52,13 @@ public class SparkEventListener extends SparkListener {
     @Override
     public void onTaskEnd(final SparkListenerTaskEnd taskEnd) {
         final TaskInfo taskInfo = taskEnd.taskInfo();
-        TimeoutManager.getInstance().setLastEventTime(taskEnd.stageId());
+        TimeoutManager.getInstance().taskFinished(taskEnd.stageId());
         SparkJobTracker.recordTaskTime(taskEnd.stageId(), taskInfo.finishTime() - taskInfo.launchTime());
     }
 
     @Override
     public void onTaskStart(final SparkListenerTaskStart taskStart) {
-        TimeoutManager.getInstance().setLastEventTime(taskStart.stageId());
+        TimeoutManager.getInstance().taskStarted(taskStart.stageId());
     }
 
     @Override

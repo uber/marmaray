@@ -40,7 +40,7 @@ public class TestHDFSMetadataManager {
 
     @Before
     public void setupTest() throws IOException {
-        this.fileSystem = FSUtils.getFs(new Configuration());
+        this.fileSystem = FSUtils.getFs(new Configuration(), Optional.absent());
         final AtomicBoolean condition = new AtomicBoolean(true);
         final String metadataPath = new Path(HDFSTestConstants.BASE_METADATA_PATH, JOB_NAME).toString();
         this.metadataManager = new HDFSMetadataManager(this.fileSystem, metadataPath, condition);

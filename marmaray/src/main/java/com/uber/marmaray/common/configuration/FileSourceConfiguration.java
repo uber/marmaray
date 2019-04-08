@@ -17,6 +17,7 @@
 
 package com.uber.marmaray.common.configuration;
 
+import com.google.common.base.Optional;
 import com.uber.marmaray.utilities.ConfigUtil;
 import lombok.NonNull;
 import org.apache.hadoop.fs.FileSystem;
@@ -49,16 +50,16 @@ public class FileSourceConfiguration implements Serializable {
         return this.conf.getProperty(TYPE).get().toLowerCase();
     }
 
-    public String getSchema() {
-        return this.conf.getProperty(SCHEMA).get();
-    }
-
     public List<String> getMandatoryProperties() {
-        return Arrays.asList(DIRECTORY, TYPE, SCHEMA);
+        return Arrays.asList(DIRECTORY, TYPE);
     }
 
     public FileSystem getFileSystem() throws IOException {
         return FileSystem.get(new HadoopConfiguration(this.conf).getHadoopConf());
+    }
+
+    public Optional<String> getSchema() {
+        return this.conf.getProperty(SCHEMA);
     }
 
 }

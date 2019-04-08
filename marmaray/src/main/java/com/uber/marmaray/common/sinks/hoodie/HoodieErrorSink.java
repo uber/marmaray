@@ -16,6 +16,7 @@
  */
 package com.uber.marmaray.common.sinks.hoodie;
 
+import com.google.common.base.Optional;
 import com.uber.hoodie.WriteStatus;
 import com.uber.hoodie.common.model.HoodieKey;
 import com.uber.hoodie.exception.HoodieInsertException;
@@ -24,13 +25,11 @@ import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.converters.data.HoodieSinkDataConverter;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.metadata.IMetadataManager;
-
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
-
-import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
 
@@ -48,7 +47,7 @@ public class HoodieErrorSink extends HoodieSink {
                            @NonNull final HoodieSinkOp op,
                            @NonNull final IMetadataManager metadataMgr,
                            final boolean shouldSaveChangesInFuture) {
-        super(hoodieConf, hoodieSinkDataConverter, jsc, op, metadataMgr, shouldSaveChangesInFuture);
+        super(hoodieConf, hoodieSinkDataConverter, jsc, op, metadataMgr, shouldSaveChangesInFuture, Optional.absent());
     }
 
     public void writeRecordsAndErrors(@NonNull final HoodieWriteResult result) {

@@ -17,6 +17,8 @@
 package com.uber.marmaray.utilities;
 
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
+import com.uber.marmaray.common.status.IStatus;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.validator.constraints.NotEmpty;
 
@@ -36,6 +38,7 @@ public final class JobUtil {
         throw new JobRuntimeException("This utility class should not be instantiated");
     }
 
+    // TODO: clean up datacenter configs
     public static String getDataCenterForJob(@NotEmpty final String dcPath) throws IOException {
         log.info("Looking up datacenter information in: {}", dcPath);
         final File dcFile = new File(dcPath);
@@ -43,6 +46,16 @@ public final class JobUtil {
              final InputStream is = new BufferedInputStream(fis)) {
             final Scanner scanner = new Scanner(is);
             return scanner.next();
+        }
+    }
+
+    public static void raiseExceptionIfStatusFailed(@NonNull final IStatus status) {
+        if (IStatus.Status.FAILURE.equals(status.getStatus())) {
+            if (status.getExceptions().isEmpty()) {
+                throw new JobRuntimeException("Job has failed");
+            } else {
+                throw new JobRuntimeException(status.getExceptions().get(0));
+            }
         }
     }
 }

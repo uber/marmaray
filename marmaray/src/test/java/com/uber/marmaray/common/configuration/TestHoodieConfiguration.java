@@ -16,11 +16,16 @@
  */
 package com.uber.marmaray.common.configuration;
 
+import com.uber.hoodie.common.model.HoodieAvroPayload;
+import com.uber.marmaray.common.AvroPayload;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.avro.Schema;
+import org.apache.avro.SchemaBuilder;
 import org.hibernate.validator.constraints.NotEmpty;
 import org.junit.Assert;
 import org.junit.Test;
+import sun.security.krb5.Config;
 
 import static com.uber.marmaray.common.util.SchemaTestUtil.getSchema;
 
@@ -86,5 +91,32 @@ public class TestHoodieConfiguration {
             hoodieConf.getProperty(HoodieConfiguration.HOODIE_INSERT_SPLIT_SIZE, defaultValue);
         Assert.assertTrue(
             value.equals(tableValue) && value.getClass() == tableValue.getClass());
+    }
+
+    @Test
+    public void testPayloadSettings() {
+        final String tableName = "myTable";
+        final Configuration conf = new Configuration();
+        conf.setProperty(HoodieConfiguration.getTablePropertyKey(HoodieConfiguration.HOODIE_TABLE_NAME, tableName),
+            tableName);
+        conf.setProperty(HoodieConfiguration.getTablePropertyKey(HoodieConfiguration.HOODIE_BASE_PATH, tableName),
+            "/my/path");
+        final Schema schema = SchemaBuilder.builder()
+            .record("foo")
+            .fields().name("bar").type().nullable().stringType().noDefault()
+            .endRecord();
+        conf.setProperty(HoodieConfiguration.getTablePropertyKey(HoodieConfiguration.HOODIE_AVRO_SCHEMA, tableName),
+            schema.toString());
+        conf.setProperty(HoodieConfiguration.getTablePropertyKey(HoodieConfiguration.HOODIE_METRICS_PREFIX, tableName),
+            "test");
+        HoodieConfiguration hoodieConf = new HoodieConfiguration(conf, tableName);
+        Assert.assertEquals(HoodieAvroPayload.class.getCanonicalName(),
+            hoodieConf.getHoodieWriteConfig().getProps().getProperty("hoodie.compaction.payload.class"));
+        conf.setProperty(
+            HoodieConfiguration.getTablePropertyKey(HoodieConfiguration.HOODIE_PAYLOAD_CLASS_NAME, tableName),
+            AvroPayload.class.getCanonicalName());
+        hoodieConf = new HoodieConfiguration(conf, tableName);
+        Assert.assertEquals(AvroPayload.class.getCanonicalName(),
+            hoodieConf.getHoodieWriteConfig().getProps().getProperty("hoodie.compaction.payload.class"));
     }
 }

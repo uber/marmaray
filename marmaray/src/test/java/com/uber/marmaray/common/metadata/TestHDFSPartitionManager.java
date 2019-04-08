@@ -48,7 +48,7 @@ public class TestHDFSPartitionManager {
 
     @Before
     public void setupTest() throws IOException {
-        this.fileSystem = FSUtils.getFs(new Configuration());
+        this.fileSystem = FSUtils.getFs(new Configuration(), Optional.absent());
     }
 
     @After
@@ -69,7 +69,6 @@ public class TestHDFSPartitionManager {
         this.fileSystem.create(filePath);
 
         final HDFSPartitionManager pm = new HDFSPartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 this.fileSystem);
 
@@ -90,7 +89,6 @@ public class TestHDFSPartitionManager {
         this.fileSystem.create(filePath);
 
         final HDFSPartitionManager pm = new HDFSPartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 this.fileSystem);
 
@@ -123,7 +121,6 @@ public class TestHDFSPartitionManager {
 
         final StringValue val1 = new StringValue(PARTITION1);
         final HDFSPartitionManager pm = new HDFSPartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 this.fileSystem);
 
@@ -149,7 +146,6 @@ public class TestHDFSPartitionManager {
         this.fileSystem.create(new Path(partition3Path, FILE1));
 
         final HDFSPartitionManager pm = new HDFSPartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 this.fileSystem);
 
@@ -173,7 +169,6 @@ public class TestHDFSPartitionManager {
         this.fileSystem.create(new Path(partition2Path, FILE1));
 
         final HDFSPartitionManager pm = new HDFSPartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 this.fileSystem);
 
@@ -189,7 +184,6 @@ public class TestHDFSPartitionManager {
         metadataManager.saveChanges();
 
         final HDFSPartitionManager pm2 = new HDFSPartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 this.fileSystem);
 
@@ -208,7 +202,6 @@ public class TestHDFSPartitionManager {
 
 
         final HDFSPartitionManager pm3 = new HDFSPartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 this.fileSystem);
 
@@ -231,7 +224,6 @@ public class TestHDFSPartitionManager {
         final StringValue val1 = new StringValue(PARTITION2);
 
         final HDFSPartitionManager pm = new HDFSPartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 this.fileSystem);
 
@@ -259,7 +251,6 @@ public class TestHDFSPartitionManager {
         this.fileSystem.create(new Path(partition2Path, FILE1));
 
         final HDFSPartitionManager pm = new HDFSPartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 this.fileSystem);
 
@@ -276,7 +267,6 @@ public class TestHDFSPartitionManager {
         this.fileSystem.create(partition0File);
 
         final HDFSPartitionManager pm = new HDFSPartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 this.fileSystem);
 

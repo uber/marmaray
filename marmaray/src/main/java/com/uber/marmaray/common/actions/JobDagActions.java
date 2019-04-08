@@ -52,22 +52,29 @@ public final class JobDagActions {
      * Actions are executed in parallel; execution status will not affect the others.
      */
 
-    public static final String DEFAULT_NAME = "anonymous";
+    public static final String DEFAULT_TARGET = "anonymous";
+
+    /**
+     * The target for the JogDagActions.
+     * It is equal to datafeed/topic in the context of ingestion jobDag.
+     * The target could be something else, it's 'JobManager' for job manager actions.
+     */
+    private static final String ACTION_TARGET = "action_target";
 
     @Getter
     private final Queue<IJobDagAction> actions;
     private final Reporters reporters;
 
     @Getter
-    private final String name;
+    private final String target;
 
     public JobDagActions(@NonNull final Reporters reporters) {
-        this(reporters, DEFAULT_NAME);
+        this(reporters, DEFAULT_TARGET);
     }
 
-    public JobDagActions(@NonNull final Reporters reporters, @NotEmpty final String name) {
+    public JobDagActions(@NonNull final Reporters reporters, @NotEmpty final String target) {
         this.actions = new ConcurrentLinkedDeque<>();
-        this.name = name;
+        this.target = target;
         this.reporters = reporters;
     }
 
@@ -115,7 +122,7 @@ public final class JobDagActions {
                 try {
                     actionSuccess.set(future.get());
                 } catch (Exception e) {
-                    log.error("Error running JobDagAction {} for {}:", action.getClass(), this.getName(), e);
+                    log.error("Error running JobDagAction {} for {}:", action.getClass(), this.getTarget(), e);
                     actionSuccess.set(false);
                     successful.set(false);
                 }
@@ -130,12 +137,14 @@ public final class JobDagActions {
     private void reportExecuteTime(@NonNull final IJobDagAction action, final long timeInMillis) {
         final LongMetric timeMetric = new LongMetric(TIME_METRIC, TimeUnit.MILLISECONDS.toSeconds(timeInMillis));
         timeMetric.addTags(action.getMetricTags());
+        timeMetric.addTag(ACTION_TARGET, this.getTarget());
         this.reporters.getReporters().stream().forEach(r -> r.gauge(timeMetric));
     }
 
     private void reportActionStatus(@NonNull final IJobDagAction action, final boolean isSuccess) {
         final LongMetric resultMetric = new LongMetric(RESULT_METRIC, isSuccess ? RESULT_SUCCESS : RESULT_FAILURE);
         resultMetric.addTags(action.getMetricTags());
+        resultMetric.addTag(ACTION_TARGET, this.getTarget());
         this.reporters.getReporters().stream().forEach(r -> r.gauge(resultMetric));
     }
 }

@@ -14,3 +14,5 @@
       simple:
         num_of_retries: 3
         wait_time_in_ms: 1000
+    hadoop:
+      mapreduce.map.memory.mb: 512

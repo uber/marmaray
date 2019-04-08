@@ -16,6 +16,7 @@
  */
 package com.uber.marmaray.common.converters.data;
 
+import com.datastax.driver.core.Statement;
 import com.datastax.driver.core.querybuilder.Insert;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.google.common.base.Joiner;
@@ -26,17 +27,22 @@ import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.converters.converterresult.ConverterResult;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.exceptions.MissingPropertyException;
+import com.uber.marmaray.common.metrics.DataFeedMetricNames;
+import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.ErrorCauseTagNames;
+import com.uber.marmaray.common.metrics.JobMetrics;
+import com.uber.marmaray.common.metrics.ModuleTagNames;
 import com.uber.marmaray.common.schema.cassandra.CassandraSchema;
 import com.uber.marmaray.utilities.ByteBufferUtil;
 import com.uber.marmaray.utilities.ErrorExtractor;
 import com.uber.marmaray.utilities.GenericRecordUtil;
 import com.uber.marmaray.utilities.SchemaUtil;
 import com.uber.marmaray.utilities.TimestampInfo;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
 import org.apache.avro.Schema;
 import org.apache.cassandra.db.marshal.LongType;
-import com.datastax.driver.core.Statement;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -53,7 +59,6 @@ import java.util.stream.Collectors;
 public class CassandraSinkCQLDataConverter extends SinkDataConverter<CassandraSchema, Statement> {
 
     private static final long serialVersionUID = 1L;
-
     private final String inputSchemaJson;
 
     @Setter
@@ -61,6 +66,9 @@ public class CassandraSinkCQLDataConverter extends SinkDataConverter<CassandraSc
 
     @Setter
     private String tableName;
+
+    @Getter
+    private Optional<DataFeedMetrics> dataFeedMetrics = Optional.absent();
 
     /*
      * The fields to convert are defined in the job configuration from the user. This can be all or a subset of fields
@@ -73,9 +81,7 @@ public class CassandraSinkCQLDataConverter extends SinkDataConverter<CassandraSc
      * keys in the Cassandra schema and are defined in the job configuration.
      */
     private final List<String> requiredFields;
-
     private Optional<Schema> inputSchema = Optional.absent();
-
     private final TimestampInfo timestampInfo;
 
     /**
@@ -104,6 +110,16 @@ public class CassandraSinkCQLDataConverter extends SinkDataConverter<CassandraSc
     }
 
     @Override
+    public void setDataFeedMetrics(final DataFeedMetrics dataFeedMetrics) {
+        this.dataFeedMetrics = Optional.of(dataFeedMetrics);
+    }
+
+    @Override
+    public void setJobMetrics(final JobMetrics jobMetrics) {
+        // ignored
+    }
+
+    @Override
     public List<ConverterResult<AvroPayload, Statement>> convert(final AvroPayload avroPayload) throws Exception {
         final Insert insertStatement = QueryBuilder.insertInto(keyspaceName, tableName);
         final Set<String> requiredKeysToFind =  new HashSet<>(this.requiredFields);
@@ -119,43 +135,67 @@ public class CassandraSinkCQLDataConverter extends SinkDataConverter<CassandraSc
                 final Object rawData = avroPayload.getData().get(field.name());
 
                 if (rawData != null) {
+                    // support timestamp field
+                    if (SchemaUtil.isTimestampSchema(field.schema())) {
+                        final Long longData = SchemaUtil.decodeTimestamp(rawData).getTime();
+                        insertStatement.value(field.name(), longData);
 
-                    final Schema nonNullSchema = GenericRecordUtil.isOptional(field.schema())
+                    } else {
+
+                        final Schema nonNullSchema = GenericRecordUtil.isOptional(field.schema())
                             ? GenericRecordUtil.getNonNull(field.schema())
                             : field.schema();
-                    final Schema.Type type = nonNullSchema.getType();
+                        final Schema.Type type = nonNullSchema.getType();
 
-                    switch (type) {
-                        case BOOLEAN:
-                            final Boolean boolData = (Boolean) rawData;
-                            insertStatement.value(field.name(), boolData);
-                            break;
-                        case INT:
-                            final Integer intData = (Integer) rawData;
-                            insertStatement.value(field.name(), intData);
-                            break;
-                        case LONG:
-                            final Long longData = (Long) rawData;
-                            insertStatement.value(field.name(), longData);
-                            break;
-                        case DOUBLE:
-                            final Double doubleData = (Double) rawData;
-                            insertStatement.value(field.name(), doubleData);
-                            break;
-                        case STRING:
-                            final String strData = rawData.toString();
-                            insertStatement.value(field.name(), strData);
-                            break;
-                        case FLOAT:
-                            final Float floatData = (Float) rawData;
-                            insertStatement.value(field.name(), floatData);
-                            break;
-                        // todo(T936057) - add support for non-primitive types
-                        default:
-                            throw new JobRuntimeException("Type " + field.schema().getType() + " not supported");
+                        switch (type) {
+                            case BOOLEAN:
+                                final Boolean boolData = (Boolean) rawData;
+                                insertStatement.value(field.name(), boolData);
+                                break;
+                            case INT:
+                                final Integer intData = (Integer) rawData;
+                                insertStatement.value(field.name(), intData);
+                                break;
+                            case LONG:
+                                final Long longData = (Long) rawData;
+                                insertStatement.value(field.name(), longData);
+                                break;
+                            case DOUBLE:
+                                final Double doubleData = (Double) rawData;
+                                insertStatement.value(field.name(), doubleData);
+                                break;
+                            case STRING:
+                                final String strData = rawData.toString();
+                                insertStatement.value(field.name(), strData);
+                                break;
+                            case FLOAT:
+                                final Float floatData = (Float) rawData;
+                                insertStatement.value(field.name(), floatData);
+                                break;
+                            case BYTES:
+                                final ByteBuffer byteData = (ByteBuffer) rawData;
+                                insertStatement.value(field.name(), byteData);
+                                break;
+                            // todo(T936057) - add support for non-primitive types
+                            default:
+                                if (this.dataFeedMetrics.isPresent()) {
+                                    this.dataFeedMetrics.get().createLongMetric(
+                                            DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                                            DataFeedMetricNames.getErrorModuleCauseTags(
+                                                    ModuleTagNames.SINK_CONVERTER,
+                                                    ErrorCauseTagNames.NOT_SUPPORTED_FIELD_TYPE));
+                                }
+                                throw new JobRuntimeException("Type " + field.schema().getType() + " not supported");
+                        }
                     }
                 } else {
                     if (requiredKeysToFind.contains(field.name())) {
+                        if (this.dataFeedMetrics.isPresent()) {
+                            this.dataFeedMetrics.get()
+                                    .createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                                            DataFeedMetricNames.getErrorModuleCauseTags(
+                                                    ModuleTagNames.SINK_CONVERTER, ErrorCauseTagNames.MISSING_DATA));
+                        }
                         throw new JobRuntimeException("Data for a required key is missing.  Key: " + field.name());
                     }
                 }
@@ -167,11 +207,16 @@ public class CassandraSinkCQLDataConverter extends SinkDataConverter<CassandraSc
             final ByteBuffer bb = this.timestampInfo.isSaveAsLongType()
                     ? LongType.instance.decompose(Long.parseLong(this.timestampInfo.getTimestamp().get()))
                     : ByteBufferUtil.wrap(this.timestampInfo.getTimestamp().get());
-            insertStatement.value(SchemaUtil.DISPERSAL_TIMESTAMP, bb);
+            insertStatement.value(timestampInfo.getTimestampFieldName(), bb);
         }
 
         if (!requiredKeysToFind.isEmpty()) {
             final Joiner joiner = Joiner.on(",");
+            if (this.dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                        DataFeedMetricNames.getErrorModuleCauseTags(
+                                ModuleTagNames.SINK_CONVERTER, ErrorCauseTagNames.MISSING_FIELD));
+            }
             throw new MissingPropertyException(joiner.join(requiredKeysToFind));
         }
 
@@ -192,6 +237,11 @@ public class CassandraSinkCQLDataConverter extends SinkDataConverter<CassandraSc
                     .filter(rf -> allFieldsToConvert.contains(this.requiredFields))
                     .collect(Collectors.toList());
             final Joiner joiner = Joiner.on(",");
+            if (this.dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                        DataFeedMetricNames.getErrorModuleCauseTags(
+                                ModuleTagNames.SINK_CONVERTER, ErrorCauseTagNames.MISSING_FIELD));
+            }
             final String errMsg = String.format("Listed required fields are missing from the list of fields to convert."
                     + " Please check your job configuration.  Missing fields are: %s", joiner.join(missingFields));
             throw new JobRuntimeException(errMsg);

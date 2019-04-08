@@ -46,7 +46,7 @@ public class AbstractSparkTest {
         this.jsc = Optional.of(new JavaSparkContext(this.spark.get().sparkContext()));
         this.sqlContext = Optional.of(SQLContext.getOrCreate(this.jsc.get().sc()));
         try {
-            this.fileSystem = Optional.of(FSUtils.getFs(new Configuration()));
+            this.fileSystem = Optional.of(FSUtils.getFs(new Configuration(), Optional.absent()));
         } catch (IOException e) {
             log.error("Cannot initialize FileSystem object", e);
         }

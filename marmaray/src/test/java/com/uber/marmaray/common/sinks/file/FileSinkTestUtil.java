@@ -69,9 +69,9 @@ public class FileSinkTestUtil extends AbstractSparkTest {
     protected Configuration initConfigWithAws(@NonNull final String pathPrefix, @NonNull final String objectKey,
                                               @NonNull final String awsLocal, @NonNull final String dispersalType,
                                               @NonNull final String timeStamp, @NonNull final String sourceSubPath,
-                                              @NonNull final String bucketName) {
+                                              @NonNull final String bucketName, @NonNull final String fileType) {
         final Configuration conf=new Configuration();
-        conf.setProperty(FileSinkConfiguration.FILE_TYPE,"csv");
+        conf.setProperty(FileSinkConfiguration.FILE_TYPE,fileType);
         conf.setProperty(FileSinkConfiguration.FILE_SIZE_MEGABYTE,"0.001");
         conf.setProperty(FileSinkConfiguration.SEPARATOR,",");
         conf.setProperty(FileSinkConfiguration.PATH_PREFIX, pathPrefix);

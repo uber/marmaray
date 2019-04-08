@@ -21,6 +21,8 @@ import com.uber.hoodie.avro.MercifulJsonConverter;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.converters.converterresult.ConverterResult;
+import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.JobMetrics;
 import com.uber.marmaray.utilities.ErrorExtractor;
 import lombok.NonNull;
 import org.apache.avro.Schema;
@@ -49,13 +51,23 @@ public class JSONFileSourceDataConverter extends FileSourceDataConverter {
     }
 
     @Override
+    public void setDataFeedMetrics(final DataFeedMetrics dataFeedMetrics) {
+        //ignored
+    }
+
+    @Override
+    public void setJobMetrics(final JobMetrics jobMetrics) {
+        // ignored
+    }
+
+    @Override
     protected List<ConverterResult<String, AvroPayload>> convert(@NonNull final String data) throws Exception {
         try {
             final GenericRecord gr = new MercifulJsonConverter(getSchema()).convert(data);
             return Collections.singletonList(
                 new ConverterResult<String, AvroPayload>(new AvroPayload(gr)));
         } catch (MercifulJsonConverter.JsonConversionException e) {
-            return Collections.singletonList(new ConverterResult<String, AvroPayload>(data, e.toString()));
+            return Collections.singletonList(new ConverterResult<String, AvroPayload>(data, e.getMessage()));
         }
     }
 }

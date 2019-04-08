@@ -21,6 +21,9 @@ import com.uber.marmaray.common.metadata.IMetadataManager;
 import com.uber.marmaray.common.metrics.IChargebackCalculator;
 import com.uber.marmaray.common.metrics.IMetricable;
 import com.uber.marmaray.common.sources.IWorkUnitCalculator.IWorkUnitCalculatorResult;
+import com.uber.marmaray.common.status.BaseStatus;
+import com.uber.marmaray.common.status.IStatus;
+
 import java.util.List;
 
 /**
@@ -83,5 +86,12 @@ public interface IWorkUnitCalculator<T, S extends IRunState<S>,
          * Returns {@link IRunState} for next run.
          */
         S getNextRunState();
+
+        /**
+         * Returns {@link IStatus} for this run.
+         */
+        default IStatus getStatus() {
+            return new BaseStatus();
+        }
     }
 }

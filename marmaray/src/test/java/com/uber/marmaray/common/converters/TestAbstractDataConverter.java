@@ -22,6 +22,8 @@ import com.uber.marmaray.common.converters.data.AbstractDataConverter;
 import com.uber.marmaray.common.data.RDDWrapper;
 import com.uber.marmaray.common.exceptions.InvalidDataException;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
+import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.JobMetrics;
 import com.uber.marmaray.common.util.AbstractSparkTest;
 import com.uber.marmaray.utilities.ErrorExtractor;
 
@@ -79,6 +81,12 @@ public class TestAbstractDataConverter extends AbstractSparkTest {
         MockAbstractDataConverter(@NonNull final Configuration conf, ErrorExtractor errorExtractor) {
             super(conf, errorExtractor);
         }
+
+        @Override
+        public void setDataFeedMetrics(final DataFeedMetrics dataFeedMetrics) {}
+
+        @Override
+        public void setJobMetrics(final JobMetrics jobMetrics) {}
 
         @Override
         protected List<ConverterResult<String, String>> convert(@NotEmpty final String data) throws Exception {

@@ -23,6 +23,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import org.hibernate.validator.constraints.NotEmpty;
 
+import java.io.Serializable;
 import java.util.Map;
 
 import static java.util.Objects.isNull;
@@ -33,7 +34,7 @@ import static java.util.Objects.isNull;
  * to a UtilTable (todo)
  */
 @Getter
-public abstract class Metric<T> {
+public abstract class Metric<T> implements Serializable {
     @NotEmpty
     protected String metricName;
     protected T metricValue;

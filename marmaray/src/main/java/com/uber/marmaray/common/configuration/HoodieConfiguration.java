@@ -23,10 +23,12 @@ import com.uber.hoodie.common.table.HoodieTableConfig;
 import com.uber.hoodie.config.HoodieCompactionConfig;
 import com.uber.hoodie.config.HoodieIndexConfig;
 import com.uber.hoodie.config.HoodieMetricsConfig;
+import com.uber.hoodie.config.HoodieStorageConfig;
 import com.uber.hoodie.config.HoodieWriteConfig;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.exceptions.MissingPropertyException;
 import com.uber.marmaray.utilities.ConfigUtil;
+import com.uber.marmaray.utilities.StringTypes;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -127,6 +129,10 @@ public class HoodieConfiguration implements Serializable {
             HOODIE_COMMON_PROPERTY_PREFIX + "cleaner_versions_retained";
     public static final int DEFAULT_HOODIE_CLEANER_VERSIONS_RETAINED = 3;
     /**
+     * Hoodie Data partitioner
+     */
+    public static final String HOODIE_DATA_PARTITIONER = HOODIE_COMMON_PROPERTY_PREFIX + "data_partitioner";
+    /**
      * Hoodie compaction small file size
      */
     public static final String HOODIE_COMPACTION_SMALL_FILE_SIZE_LIMIT =
@@ -137,12 +143,13 @@ public class HoodieConfiguration implements Serializable {
      */
     /**
      * Range for maximum parquet file size (uncompressed) is between {@link #HOODIE_COMPACTION_SMALL_FILE_SIZE_LIMIT}
-     * and 6GB. Default is set to 4GB. Set this value to at least > 2.5 times
+     * and 6GB. Default is set to 1GB. Set this value to at least > 2.5 times
+     * TODO: Reduced to int to handle current hoodie version. Should be converted back to long on hoodie upgrade
      * {@link #HOODIE_COMPACTION_SMALL_FILE_SIZE_LIMIT}.
      */
     public static final String HOODIE_PARQUET_MAX_FILE_SIZE =
             HOODIE_COMMON_PROPERTY_PREFIX + "parquet_max_file_size";
-    public static final long DEFAULT_HOODIE_PARQUET_MAX_FILE_SIZE = 4 * FileUtils.ONE_GB;
+    public static final int DEFAULT_HOODIE_PARQUET_MAX_FILE_SIZE = (int) FileUtils.ONE_GB;
     /**
      * Hoodie insert split size
      */
@@ -193,6 +200,14 @@ public class HoodieConfiguration implements Serializable {
             HOODIE_COMMON_PROPERTY_PREFIX + "rollback_inflight_commits";
     public static final boolean DEFAULT_HOODIE_ROLLBACK_INFLIGHT_COMMITS = true;
 
+    /**
+     * Payload class to use.
+     */
+    public static final String HOODIE_PAYLOAD_CLASS_NAME =
+            HOODIE_COMMON_PROPERTY_PREFIX + "paylaod_class_name";
+    // default isn't used to set a vaule, but instead to detect if it was set
+    public static final String DEFAULT_HOODIE_PAYLOAD_CLASS_NAME = "default";
+
     @Getter
     private final Configuration conf;
     @Getter
@@ -240,6 +255,11 @@ public class HoodieConfiguration implements Serializable {
      * */
     public String getHoodieMetricsPrefix() {
         return this.getConf().getProperty(getTablePropertyKey(HOODIE_METRICS_PREFIX, this.tableKey)).get();
+    }
+
+    public String getHoodieDataPartitioner(@NotEmpty final String defaultDataPartitioner) {
+        return this.getConf().getProperty(getTablePropertyKey(HOODIE_DATA_PARTITIONER, this.tableKey),
+            defaultDataPartitioner);
     }
 
     /**
@@ -315,7 +335,9 @@ public class HoodieConfiguration implements Serializable {
     public HoodieWriteConfig getHoodieWriteConfig() {
         final HoodieWriteConfig.Builder builder = HoodieWriteConfig.newBuilder();
         try {
-            builder.forTable(getTableName());
+            // This table name is used for sending metrics to graphite by hoodie. It expects table name to be without
+            // ".".
+            builder.forTable(getTableName().replaceAll("\\.", StringTypes.UNDERSCORE));
             builder.withPath(getBasePath());
             final boolean combineBeforeInsert =
                     getProperty(HOODIE_COMBINE_BEFORE_INSERT, DEFAULT_HOODIE_COMBINE_BEFORE_INSERT);
@@ -337,8 +359,15 @@ public class HoodieConfiguration implements Serializable {
 
             // Hoodie compaction config.
             final HoodieCompactionConfig.Builder compactionConfigBuilder = HoodieCompactionConfig.newBuilder();
+
             compactionConfigBuilder.withCleanerPolicy(HoodieCleaningPolicy
                     .valueOf(getProperty(HOODIE_CLEANER_POLICY, DEFAULT_HOODIE_CLEANER_POLICY)));
+
+            // set the payload class if it has been set in configuration
+            final String payloadClass = getProperty(HOODIE_PAYLOAD_CLASS_NAME, DEFAULT_HOODIE_PAYLOAD_CLASS_NAME);
+            if (!DEFAULT_HOODIE_PAYLOAD_CLASS_NAME.equals(payloadClass)) {
+                compactionConfigBuilder.withPayloadClass(payloadClass);
+            }
             compactionConfigBuilder.retainCommits(
                     getProperty(HOODIE_CLEANER_COMMITS_RETAINED, DEFAULT_HOODIE_CLEANER_COMMITS_RETAINED));
             compactionConfigBuilder.retainFileVersions(
@@ -355,6 +384,12 @@ public class HoodieConfiguration implements Serializable {
                             DEFAULT_HOODIE_COMPACTION_SMALL_FILE_SIZE_LIMIT));
             compactionConfigBuilder.withAutoClean(shouldAutoClean());
             builder.withCompactionConfig(compactionConfigBuilder.build());
+
+            // Hoodie storage config.
+            builder.withStorageConfig(
+                    HoodieStorageConfig.newBuilder().limitFileSize(
+                            getProperty(HOODIE_PARQUET_MAX_FILE_SIZE, DEFAULT_HOODIE_PARQUET_MAX_FILE_SIZE)
+                    ).build());
 
             // Hoodie index config
             builder.withIndexConfig(new HoodieIndexConfiguration(getConf(), getTableKey()).configureHoodieIndex());
@@ -388,6 +423,9 @@ public class HoodieConfiguration implements Serializable {
 
             // enable tmp directory writes for hoodie.
             builder.withUseTempFolderCopyOnWriteForCreate(true);
+
+            // enabled the renaming for copy detection on merge
+            builder.withUseTempFolderCopyOnWriteForMerge(true);
 
             return builder.build();
         } catch (IllegalArgumentException e) {

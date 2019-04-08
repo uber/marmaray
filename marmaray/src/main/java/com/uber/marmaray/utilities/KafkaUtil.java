@@ -76,8 +76,13 @@ public final class KafkaUtil {
             final AtomicInteger attemptNumber = new AtomicInteger(0);
             verifyTopicPartitions(kafkaConsumer, topicName, topicPartitions);
             final Callable<Void> fetchOffsetTask = () -> {
-                log.info("requesting topicPartitions for {} - % success {}/{} - attemptNumber - {}", topicName,
-                    partitionOffsets.size(), topicPartitions.size(), attemptNumber.incrementAndGet());
+                log.info(
+                        "requesting topicPartitions for {} - % success {}/{} - attemptNumber - {}",
+                        topicName,
+                        partitionOffsets.size(),
+                        topicPartitions.size(),
+                        attemptNumber.incrementAndGet()
+                );
                 topicPartitions.stream().forEach(
                     tp -> {
                         try {
@@ -119,8 +124,8 @@ public final class KafkaUtil {
      * Helper method to verify that given kafka topic has all passed in topicPartitions.
      */
     public static void verifyTopicPartitions(@NonNull final KafkaConsumer kafkaConsumer,
-        @NotEmpty final String topicName, @NonNull final Set<TopicPartition> topicPartitions) {
-        Set<Integer> partitions = new HashSet<>();
+            @NotEmpty final String topicName, @NonNull final Set<TopicPartition> topicPartitions) {
+        final Set<Integer> partitions = new HashSet<>();
         topicPartitions.stream().forEach(
             tp -> {
                 partitions.add(tp.partition());
@@ -225,4 +230,5 @@ public final class KafkaUtil {
         );
         return newKafkaParams;
     }
+
 }

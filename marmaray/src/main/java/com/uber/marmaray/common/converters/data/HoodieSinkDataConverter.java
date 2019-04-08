@@ -23,6 +23,8 @@ import com.uber.hoodie.common.model.HoodieRecordPayload;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.converters.converterresult.ConverterResult;
+import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.JobMetrics;
 import com.uber.marmaray.common.sinks.hoodie.HoodieSink;
 import com.uber.marmaray.utilities.ErrorExtractor;
 
@@ -54,6 +56,16 @@ public abstract class HoodieSinkDataConverter extends SinkDataConverter<Schema, 
         super(conf, errorExtractor);
         this.schema = schema;
         this.errorExtractor = errorExtractor;
+    }
+
+    @Override
+    public void setDataFeedMetrics(final DataFeedMetrics dataFeedMetrics) {
+        //ignored
+    }
+
+    @Override
+    public void setJobMetrics(final JobMetrics jobMetrics) {
+        // ignored
     }
 
     @Override

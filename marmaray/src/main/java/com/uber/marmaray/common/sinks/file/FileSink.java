@@ -19,18 +19,27 @@ package com.uber.marmaray.common.sinks.file;
 
 import com.google.common.base.Optional;
 import com.uber.marmaray.common.AvroPayload;
+import com.uber.marmaray.common.FileSinkType;
 import com.uber.marmaray.common.configuration.FileSinkConfiguration;
 import com.uber.marmaray.common.converters.data.FileSinkDataConverter;
 import com.uber.marmaray.common.data.RDDWrapper;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.metrics.DataFeedMetricNames;
 import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.ErrorCauseTagNames;
 import com.uber.marmaray.common.metrics.JobMetrics;
+import com.uber.marmaray.common.metrics.ModuleTagNames;
 import com.uber.marmaray.common.sinks.ISink;
+
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.io.FileUtils;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.Text;
+
+import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
+import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 
 import java.io.Serializable;
@@ -38,6 +47,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import scala.Tuple2;
 
 /**
  * {@link FileSink} implements the {@link ISink} interface for a File sink.
@@ -64,7 +74,7 @@ public abstract class FileSink implements ISink, Serializable {
     @Override
     public void setDataFeedMetrics(@NonNull final DataFeedMetrics dataFeedMetrics) {
         this.dataFeedMetrics = Optional.of(dataFeedMetrics);
-
+        this.converter.setDataFeedMetrics(dataFeedMetrics);
     }
 
     @Override
@@ -81,30 +91,93 @@ public abstract class FileSink implements ISink, Serializable {
      * @param data data to write to sink
      */
     @Override
-    public void write(@NonNull final JavaRDD<AvroPayload> data) {
-        final JavaRDD<String> convertedData = this.converter.convertAll(data);
-        final int partNum = getRepartitionNum(convertedData);
+    public void write(@NonNull final JavaRDD<AvroPayload> data) throws UnsupportedOperationException {
+
+        log.info("Start write {} to path {}", this.conf.getFileType(), this.conf.getFullPath());
+        final JavaPairRDD<String, String> convertedData = this.converter.convertAll(data);
+        final JavaRDD<String> tmp = convertedData.map(message -> message._2());
+        final int partNum = getRepartitionNum(tmp);
         final int desiredDigit = (int) Math.floor(Math.log10(partNum) + 1);
         this.digitNum = desiredDigit > DEFAULT_DIGIT_NUM ? desiredDigit : DEFAULT_DIGIT_NUM;
-        final JavaRDD<String> dataRepartitioned = convertedData.repartition(partNum);
-        final JavaRDD<String> dataToWrite;
-        if (this.conf.isColumnHeader()) {
-            final String header = this.converter.getHeader(data);
-            dataToWrite = addColumnHeader(header, dataRepartitioned);
+
+        if (this.conf.getFileType().equals("csv")) {
+            final JavaRDD<String> dataRepartitioned = tmp.repartition(partNum);
+            final JavaRDD<String> dataToWrite;
+            if (this.conf.isColumnHeader()) {
+                final String header = this.converter.getHeader(data);
+                dataToWrite = addColumnHeader(header, dataRepartitioned);
+            } else {
+                dataToWrite = dataRepartitioned;
+            }
+            if (dataFeedMetrics.isPresent()) {
+                final Map<String, String> tags = new HashMap<>();
+                tags.put(SINK_INFO_TAG, this.conf.getSinkType().name());
+                final RDDWrapper<String> dataWrapper = new RDDWrapper<>(dataToWrite);
+                final long totalRows = dataWrapper.getCount();
+                this.dataFeedMetrics.get().createLongMetric(DataFeedMetricNames.OUTPUT_ROWCOUNT,
+                        totalRows, tags);
+            }
+            log.info("Start write {} to path {}", this.conf.getFileType(), this.conf.getFullPath());
+            // based on converter type saving should change
+            try {
+                dataToWrite.saveAsTextFile(this.conf.getFullPath());
+                log.info("Finished save to path: {}.", this.conf.getFullPath());
+            } catch (Exception e) {
+                if (this.dataFeedMetrics.isPresent()) {
+                    this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR,
+                            1, DataFeedMetricNames.getErrorModuleCauseTags(
+                                    ModuleTagNames.SINK, ErrorCauseTagNames.WRITE_TO_SINK_CSV));
+                }
+                final String sink = this.conf.getSinkType() == FileSinkType.valueOf("S3") ? "s3" : "hdfs";
+                log.error("Error while writing to {} ", sink, e);
+            }
+        } else if (this.conf.getFileType().equals("sequence")) {
+            final JavaPairRDD<Text, Text> dataToRepartition = convertedData
+                    .mapToPair(message ->
+                            new Tuple2<>(new Text(message._1()), new Text(message._2())));
+            final JavaPairRDD<Text, Text> dataToWrite = dataToRepartition.repartition(partNum);
+
+            Configuration savingConf = new Configuration();
+            if (this.conf.isCompression()) {
+                savingConf.set("mapreduce.output.fileoutputformat.compress", "true");
+                if (this.conf.getCompressionCodec().equals("lz4")) {
+                    log.info("Save sequence file with LZ4 compression");
+                    savingConf.set("mapreduce.output.fileoutputformat.compress.codec",
+                            "org.apache.hadoop.io.compress.Lz4Codec");
+                } else {
+                    if (dataFeedMetrics.isPresent()) {
+                        this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR,
+                                1, DataFeedMetricNames.getErrorModuleCauseTags(
+                                        ModuleTagNames.SINK, ErrorCauseTagNames.COMPRESSION));
+                    }
+                    final String errorMessage = String.format("Compression codec {} not supported",
+                            this.conf.getCompressionCodec());
+                    throw new UnsupportedOperationException(errorMessage);
+                }
+            }
+            try {
+                dataToWrite.saveAsNewAPIHadoopFile(this.conf.getFullPath(),
+                        Text.class, Text.class, SequenceFileOutputFormat.class, savingConf);
+                log.info("Finished save to path: {}.", this.conf.getFullPath());
+            } catch (Exception e) {
+                if (this.dataFeedMetrics.isPresent()) {
+                    this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR,
+                            1, DataFeedMetricNames.getErrorModuleCauseTags(
+                                    ModuleTagNames.SINK, ErrorCauseTagNames.WRITE_TO_SINK_SEQ));
+                }
+                final String sink = this.conf.getSinkType() == FileSinkType.valueOf("S3") ? "s3" : "hdfs";
+                log.error("Error while writing to {} ", sink, e);
+                throw new JobRuntimeException(e);
+            }
         } else {
-            dataToWrite = dataRepartitioned;
+            if (dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                        DataFeedMetricNames.getErrorModuleCauseTags(
+                                ModuleTagNames.SINK, ErrorCauseTagNames.OUTPUT_FILE_FORMAT));
+            }
+            final String errorMessage = String.format("Format %s not supported yet.", this.conf.getFileType());
+            throw new UnsupportedOperationException(errorMessage);
         }
-        if (dataFeedMetrics.isPresent()) {
-            final Map<String, String> tags = new HashMap<>();
-            tags.put(SINK_INFO_TAG, this.conf.getSinkType().name());
-            final RDDWrapper<String> dataWrapper = new RDDWrapper<>(dataToWrite);
-            final long totalRows = dataWrapper.getCount();
-            this.dataFeedMetrics.get().createLongMetric(DataFeedMetricNames.OUTPUT_ROWCOUNT,
-                    totalRows, tags);
-        }
-        log.info("Start write {} to path {}", this.conf.getFileType(), this.conf.getFullPath());
-        dataToWrite.saveAsTextFile(this.conf.getFullPath());
-        log.info("Finished save to path: {}.", this.conf.getFullPath());
     }
 
     /**
@@ -195,6 +268,11 @@ public abstract class FileSink implements ISink, Serializable {
             }
             log.debug("Sample size in bytes: {}", size);
         } catch (UnsupportedEncodingException e) {
+            if (dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                        DataFeedMetricNames.getErrorModuleCauseTags(
+                                ModuleTagNames.SINK, ErrorCauseTagNames.CALCULATE_SAMPLE_SIZE));
+            }
             log.error("Failed while calculating sample size: {}", e.getMessage());
             throw new JobRuntimeException(e);
         }

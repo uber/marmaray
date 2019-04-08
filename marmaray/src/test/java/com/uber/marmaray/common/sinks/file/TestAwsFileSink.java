@@ -23,6 +23,7 @@ import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.uber.marmaray.common.converters.data.FileSinkDataConverterFactory;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.AwsConfiguration;
 import com.uber.marmaray.common.configuration.Configuration;
@@ -30,7 +31,6 @@ import com.uber.marmaray.common.configuration.FileSinkConfiguration;
 import com.uber.marmaray.common.converters.data.FileSinkDataConverter;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.util.AvroPayloadUtil;
-import com.uber.marmaray.utilities.ErrorExtractor;
 import com.uber.marmaray.utilities.StringTypes;
 import io.findify.s3mock.S3Mock;
 import lombok.NonNull;
@@ -91,7 +91,8 @@ public class TestAwsFileSink extends FileSinkTestUtil {
     private static final String OBJ_KEY_2 = "test2";
     private static final String PARENT_DIR = "aws_test";
     private static final int NUM_RECORD = 100;
-    private static final int EXPECTED_PARTITION_NUM = 2;
+    private static final int EXPECTED_CSV_PARTITION_NUM = 2;
+    private static final int EXPECTED_JSON_PARTITION_NUM = 7;
     private static final int EXPECTED_INVOCATIONS = 1;
     private static final String TIMESTAMP1 = "201808011025";
     private static final String TIMESTAMP2 = "201808012025";
@@ -101,6 +102,8 @@ public class TestAwsFileSink extends FileSinkTestUtil {
     private static final String VERSION = "version";
     private static final String OVERWRITE = "overwrite";
     private static final String S3_TEST_FOLDER = "s3-tests";
+    private static final String CSV = "csv";
+    private static final String SEQUENCE = "sequence";
     private S3Mock s3mock;
     private String port;
     @Rule
@@ -141,15 +144,29 @@ public class TestAwsFileSink extends FileSinkTestUtil {
     @Ignore
     @Test
     public void testWriteToS3WithVersion() throws IOException {
-        final Configuration conf1 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, VERSION, TIMESTAMP1, SOURCE_SUB_PATH1, S3_BUCKET_NAME);
-        final Configuration conf2 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL2, VERSION, TIMESTAMP2, SOURCE_SUB_PATH1, S3_BUCKET_NAME);
-        final Configuration conf3 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL3, VERSION,  TIMESTAMP3, SOURCE_SUB_PATH2, S3_BUCKET_NAME);
+        // CSV
+        final Configuration csvConf1 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, VERSION, TIMESTAMP1,
+                SOURCE_SUB_PATH1, S3_BUCKET_NAME, CSV);
+        final Configuration csvConf2 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL2, VERSION, TIMESTAMP2,
+                SOURCE_SUB_PATH1, S3_BUCKET_NAME, CSV);
+        final Configuration csvConf3 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL3, VERSION,  TIMESTAMP3,
+                SOURCE_SUB_PATH2, S3_BUCKET_NAME, CSV);
         final JavaRDD<AvroPayload> testData = AvroPayloadUtil.generateTestData(this.jsc.get(),
                 NUM_RECORD,
                 StringTypes.EMPTY);
-        testWriteGeneral(testData, conf1);
-        testWriteGeneral(testData, conf2);
-        testWriteGeneral(testData, conf3);
+        testWriteGeneral(testData, csvConf1);
+        testWriteGeneral(testData, csvConf2);
+        testWriteGeneral(testData, csvConf3);
+        //SEQUENCE
+        final Configuration seqConf1 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, VERSION, TIMESTAMP1,
+                SOURCE_SUB_PATH1, S3_BUCKET_NAME, SEQUENCE);
+        final Configuration seqConf2 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL2, VERSION, TIMESTAMP2,
+                SOURCE_SUB_PATH1, S3_BUCKET_NAME, SEQUENCE);
+        final Configuration seqConf3 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL3, VERSION,  TIMESTAMP3,
+                SOURCE_SUB_PATH2, S3_BUCKET_NAME, SEQUENCE);
+        testWriteGeneral(testData, seqConf1);
+        testWriteGeneral(testData, seqConf2);
+        testWriteGeneral(testData, seqConf3);
     }
 
     /* Test bucket name: uber-test
@@ -158,9 +175,12 @@ public class TestAwsFileSink extends FileSinkTestUtil {
     @Ignore
     @Test
     public void testWriteToS3WithSpecialCharAndOverWrite() throws IOException {
-        final Configuration conf1 = initConfigWithAws(this.pathPrefix, OBJ_KEY_2, LOCAL1, VERSION, TIMESTAMP1, SOURCE_SUB_PATH1, S3_BUCKET_NAME);
-        final Configuration conf2 = initConfigWithAws(this.pathPrefix, OBJ_KEY_2, LOCAL2, VERSION,  TIMESTAMP2, SOURCE_SUB_PATH1, S3_BUCKET_NAME);
-        final Configuration conf3 = initConfigWithAws(this.pathPrefix, OBJ_KEY_2, LOCAL3, OVERWRITE,  TIMESTAMP3, SOURCE_SUB_PATH2, S3_BUCKET_NAME);
+        final Configuration conf1 = initConfigWithAws(this.pathPrefix, OBJ_KEY_2, LOCAL1, VERSION, TIMESTAMP1,
+                SOURCE_SUB_PATH1, S3_BUCKET_NAME, CSV);
+        final Configuration conf2 = initConfigWithAws(this.pathPrefix, OBJ_KEY_2, LOCAL2, VERSION,  TIMESTAMP2,
+                SOURCE_SUB_PATH1, S3_BUCKET_NAME, CSV);
+        final Configuration conf3 = initConfigWithAws(this.pathPrefix, OBJ_KEY_2, LOCAL3, OVERWRITE,  TIMESTAMP3,
+                SOURCE_SUB_PATH2, S3_BUCKET_NAME, CSV);
         final JavaRDD<AvroPayload> testData = AvroPayloadUtil.generateTestDataNew(this.jsc.get(),
                 NUM_RECORD,
                 StringTypes.EMPTY);
@@ -171,24 +191,34 @@ public class TestAwsFileSink extends FileSinkTestUtil {
 
     //The following tests are used for uploading to Mock S3 Client
     //Todo-T1984925: FIX test error here.
-    @Ignore
     @Test
     public void testWriteToMockS3WithSingleVersion() throws IOException {
-        final Configuration conf1 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, VERSION,  TIMESTAMP1, SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME);
-        testWriteToMockS3General(conf1);
+        final Configuration csvConf = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, VERSION,  TIMESTAMP1,
+                SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME, CSV);
+        testWriteToMockS3General(csvConf);
+        final Configuration seqConf = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, VERSION,  TIMESTAMP1,
+                SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME, SEQUENCE);
+        testWriteToMockS3General(seqConf);
     }
-    @Ignore
+
     @Test
     public void testWriteToMockS3WithSingleOverwrite() throws IOException {
-        final Configuration conf1 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, OVERWRITE,  TIMESTAMP1, SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME);
-        testWriteToMockS3General(conf1);
+        final Configuration csvConf = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, OVERWRITE,  TIMESTAMP1,
+                SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME, CSV);
+        testWriteToMockS3General(csvConf);
+        final Configuration seqConf = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, OVERWRITE,  TIMESTAMP1,
+                SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME, SEQUENCE);
+        testWriteToMockS3General(seqConf);
     }
-    @Ignore
+
     @Test
     public void testWriteToMockS3WithMultiVersion() throws IOException {
-        final Configuration conf1 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, VERSION,  TIMESTAMP1, SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME);
-        final Configuration conf2 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL2, VERSION,  TIMESTAMP2, SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME);
-        final Configuration conf3 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL3, VERSION,  TIMESTAMP3, SOURCE_SUB_PATH2, S3_TEST_BUCKET_NAME);
+        final Configuration conf1 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, VERSION,  TIMESTAMP1,
+                SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME, CSV);
+        final Configuration conf2 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL2, VERSION,  TIMESTAMP2,
+                SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME, CSV);
+        final Configuration conf3 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL3, VERSION,  TIMESTAMP3,
+                SOURCE_SUB_PATH2, S3_TEST_BUCKET_NAME, CSV);
         final List<String> filePrefix = new ArrayList<>();
         filePrefix.add(testWriteToMockS3General(conf1));
         filePrefix.add(testWriteToMockS3General(conf2));
@@ -196,18 +226,39 @@ public class TestAwsFileSink extends FileSinkTestUtil {
         final AmazonS3 MockClient = getMockS3Connection();
         assertTrue(MockClient.doesBucketExistV2(S3_TEST_BUCKET_NAME));
         for (String aFilePrefix : filePrefix) {
-            for (int j = 0; j < EXPECTED_PARTITION_NUM; j++) {
+            for (int j = 0; j < EXPECTED_CSV_PARTITION_NUM; j++) {
+                final Boolean objectExist = MockClient.doesObjectExist(S3_TEST_BUCKET_NAME, aFilePrefix + "_0000" + j);
+                assertTrue(objectExist);
+            }
+        }
+
+        final Configuration seqConf1 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, VERSION,  TIMESTAMP1,
+                SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME, SEQUENCE);
+        final Configuration seqConf2 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL2, VERSION,  TIMESTAMP2,
+                SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME, SEQUENCE);
+        final Configuration seqConf3 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL3, VERSION,  TIMESTAMP3,
+                SOURCE_SUB_PATH2, S3_TEST_BUCKET_NAME, SEQUENCE);
+        final List<String> seqFilePrefix = new ArrayList<>();
+        seqFilePrefix.add(testWriteToMockS3General(seqConf1));
+        seqFilePrefix.add(testWriteToMockS3General(seqConf2));
+        seqFilePrefix.add(testWriteToMockS3General(seqConf3));
+        assertTrue(MockClient.doesBucketExistV2(S3_TEST_BUCKET_NAME));
+        for (String aFilePrefix : seqFilePrefix) {
+            for (int j = 0; j < EXPECTED_JSON_PARTITION_NUM; j++) {
                 final Boolean objectExist = MockClient.doesObjectExist(S3_TEST_BUCKET_NAME, aFilePrefix + "_0000" + j);
                 assertTrue(objectExist);
             }
         }
     }
-    @Ignore
+
     @Test
     public void testWriteToMockS3WithMultiOverWrite() throws IOException {
-        final Configuration conf1 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, VERSION,  TIMESTAMP1, SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME);
-        final Configuration conf2 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL2, VERSION,  TIMESTAMP2, SOURCE_SUB_PATH2, S3_TEST_BUCKET_NAME);
-        final Configuration conf3 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL3, OVERWRITE,  TIMESTAMP3, SOURCE_SUB_PATH2, S3_TEST_BUCKET_NAME);
+        final Configuration conf1 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, VERSION,  TIMESTAMP1,
+                SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME, CSV);
+        final Configuration conf2 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL2, VERSION,  TIMESTAMP2,
+                SOURCE_SUB_PATH2, S3_TEST_BUCKET_NAME, CSV);
+        final Configuration conf3 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL3, OVERWRITE,  TIMESTAMP3,
+                SOURCE_SUB_PATH2, S3_TEST_BUCKET_NAME, CSV);
         final List<String> filePrefix = new ArrayList<String>();
         filePrefix.add(testWriteToMockS3General(conf1));
         filePrefix.add(testWriteToMockS3General(conf2));
@@ -215,7 +266,7 @@ public class TestAwsFileSink extends FileSinkTestUtil {
         final AmazonS3 MockClient = getMockS3Connection();
         assertTrue(MockClient.doesBucketExistV2(S3_TEST_BUCKET_NAME));
         for (int i = 0 ; i < filePrefix.size() ; i++) {
-            for (int j = 0; j < EXPECTED_PARTITION_NUM; j++) {
+            for (int j = 0; j < EXPECTED_CSV_PARTITION_NUM; j++) {
                 final Boolean objectExist = MockClient.doesObjectExist(S3_TEST_BUCKET_NAME, filePrefix.get(i) + "_0000" + j);
                 if (i == 1) {
                     assertFalse(objectExist);
@@ -225,30 +276,58 @@ public class TestAwsFileSink extends FileSinkTestUtil {
             }
         }
 
+        final Configuration seqConf1 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL1, VERSION,  TIMESTAMP1,
+                SOURCE_SUB_PATH1, S3_TEST_BUCKET_NAME, SEQUENCE);
+        final Configuration seqConf2 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL2, VERSION,  TIMESTAMP2,
+                SOURCE_SUB_PATH2, S3_TEST_BUCKET_NAME, SEQUENCE);
+        final Configuration seqConf3 = initConfigWithAws(this.pathPrefix, OBJ_KEY_1, LOCAL3, OVERWRITE,  TIMESTAMP3,
+                SOURCE_SUB_PATH2, S3_TEST_BUCKET_NAME, SEQUENCE);
+        final List<String> seqFilePrefix = new ArrayList<String>();
+        seqFilePrefix.add(testWriteToMockS3General(seqConf1));
+        seqFilePrefix.add(testWriteToMockS3General(seqConf2));
+        seqFilePrefix.add(testWriteToMockS3General(seqConf3));
+        assertTrue(MockClient.doesBucketExistV2(S3_TEST_BUCKET_NAME));
+        for (int i = 0 ; i < seqFilePrefix.size() ; i++) {
+            for (int j = 0; j < EXPECTED_JSON_PARTITION_NUM; j++) {
+                final Boolean objectExist = MockClient.doesObjectExist(S3_TEST_BUCKET_NAME, filePrefix.get(i) + "_0000" + j);
+                if (i == 1) {
+                    assertFalse(objectExist);
+                } else {
+                    assertTrue(objectExist);
+                }
+            }
+        }
     }
 
     private String testWriteToMockS3General(@NonNull final Configuration conf) throws IOException {
         final JavaRDD<AvroPayload> testData = AvroPayloadUtil.generateTestDataNew(this.jsc.get(),
                 NUM_RECORD,
                 StringTypes.EMPTY);
-        final FileSinkDataConverter converter = new FileSinkDataConverter(conf, new ErrorExtractor());
+        final FileSinkDataConverter converter = FileSinkDataConverterFactory.createFileSinkDataConverter(conf);
         final FileSinkConfiguration fileConf = new FileSinkConfiguration(conf);
         final AwsConfiguration awsConf = new AwsConfiguration(fileConf);
         final MockAwsFileSink awsMockSink = spy(new MockAwsFileSink(fileConf, converter));
         awsMockSink.write(testData);
         final AmazonS3 MockClient = awsMockSink.getS3Client();
         verify(awsMockSink, times(EXPECTED_INVOCATIONS)).write(Matchers.any(JavaRDD.class));
-        verify(MockClient, times(EXPECTED_PARTITION_NUM)).putObject(Matchers.any(PutObjectRequest.class));
+        final int partitionNumber = fileConf.getFileType().equals(CSV) ? EXPECTED_CSV_PARTITION_NUM : EXPECTED_JSON_PARTITION_NUM;
+        verify(MockClient, times(partitionNumber)).putObject(Matchers.any(PutObjectRequest.class));
         assertTrue(MockClient.doesBucketExistV2(fileConf.getBucketName().get()));
-        for (int i = 0 ; i < EXPECTED_PARTITION_NUM ; i++) {
+        for (int i = 0 ; i < EXPECTED_CSV_PARTITION_NUM ; i++) {
             final Boolean objectExist = MockClient.doesObjectExist(fileConf.getBucketName().get(), awsConf.getS3FilePrefix()+ "_0000" + i);
             assertTrue(objectExist);
         }
         return awsConf.getS3FilePrefix();
     }
 
+    /**
+     * test Aws3 client with end to end connection
+     * @param testData
+     * @param conf
+     * @throws IOException
+     */
     private void testWriteGeneral(@NonNull final JavaRDD<AvroPayload> testData, @NonNull final Configuration conf) throws IOException {
-        final FileSinkDataConverter converter = new FileSinkDataConverter(conf, new ErrorExtractor());
+        final FileSinkDataConverter converter = FileSinkDataConverterFactory.createFileSinkDataConverter(conf);
         final FileSinkConfiguration fileConf = new FileSinkConfiguration(conf);
         final FileSink awsSink = new AwsFileSink(fileConf, converter);
         awsSink.write(testData);

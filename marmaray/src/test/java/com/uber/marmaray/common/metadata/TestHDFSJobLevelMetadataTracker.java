@@ -48,7 +48,7 @@ public class TestHDFSJobLevelMetadataTracker {
         config.setProperty(MetadataConstants.JOBMANAGER_METADATA_STORAGE, "hdfs");
         config.setProperty(MetadataConstants.JOBMANAGER_METADATA_HDFS_BASEPATH,
                 HDFSTestConstants.JOBMANAGER_BASE_METADATA_BASEPATH);
-        this.fileSystem = FSUtils.getFs(config);
+        this.fileSystem = FSUtils.getFs(config, Optional.absent());
         final AtomicBoolean condition = new AtomicBoolean(true);
         basePath = new Path(HDFSTestConstants.JOBMANAGER_BASE_METADATA_BASEPATH);
         this.tracker = Optional.of(new JobManagerMetadataTracker(config));

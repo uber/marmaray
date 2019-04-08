@@ -25,13 +25,11 @@ public final class HiveTestUtil {
     }
 
     public static HiveSourceConfiguration initializeConfig(final String jobName,
-                                                           final String dataPath,
-                                                           final String metadataPath)
+                                                           final String dataPath)
     {
         final Configuration config = new Configuration();
         config.setProperty(HiveSourceConfiguration.JOB_NAME, jobName);
         config.setProperty(HiveSourceConfiguration.HIVE_DATA_PATH, dataPath);
-        config.setProperty(HiveSourceConfiguration.BASE_METADATA_PATH, metadataPath);
         return new HiveSourceConfiguration(config);
     }
 }

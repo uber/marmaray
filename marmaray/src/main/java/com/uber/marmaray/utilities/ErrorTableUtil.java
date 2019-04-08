@@ -38,6 +38,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.Function;
 import org.hibernate.validator.constraints.NotEmpty;
 
 import lombok.NonNull;
@@ -47,8 +48,10 @@ import java.io.IOException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.uber.marmaray.common.configuration.SparkConfiguration.SPARK_PROPERTIES_KEY_PREFIX;
 import static com.uber.marmaray.utilities.DateUtil.DATE_PARTITION_FORMAT;
 
 /**
@@ -62,12 +65,13 @@ public final class ErrorTableUtil {
     public static final String HADOOP_ERROR_EXCEPTION = "hadoop_error_exception";
     public static final String HADOOP_CHANGELOG_COLUMNS = "Hadoop_Changelog_Columns";
     public static final String HADOOP_APPLICATION_ID = "hadoop_application_id";
-    public static final String HOODIE_RECORD_KEY = "Hoodie_record_key_constant";
+    public static final String HOODIE_RECORD_KEY = "Hoodie_record_key_constant_%s";
     public static final String ERROR_SCHEMA_IDENTIFIER = "spark.user.ERROR_SCHEMA";
     public static final String ERROR_TABLE_SUFFIX = "_error";
     public static final String TABLE_KEY = "spark.user.table_key";
     public static final String ERROR_TABLE_KEY = "spark.user.error_table_key";
-
+    public static final Integer ERROR_ROW_KEY_SUFFIX_MAX = 256;
+    public static final Integer ERROR_TABLE_RANDOM_SEED_VALUE = 1;
     /**
      * Default flag to control whether error table metrics is enabled
      */
@@ -122,11 +126,19 @@ public final class ErrorTableUtil {
             JavaRDD<GenericRecord> errorRecords = errorData.getData().map(error -> generateGenericErrorRecord(
                 errorExtractor, errorTableSchema, error, applicationId));
 
-            JavaRDD<HoodieRecord<HoodieErrorPayload>> hoodieRecords = errorRecords.map(record ->
-                {
-                    final HoodieKey hoodieKey = new HoodieKey(HOODIE_RECORD_KEY, partitionPath);
-                    HoodieErrorPayload payload = new HoodieErrorPayload(record);
-                    return new HoodieRecord<>(hoodieKey, payload);
+            JavaRDD<HoodieRecord<HoodieErrorPayload>> hoodieRecords = errorRecords.map(
+                new Function<GenericRecord, HoodieRecord<HoodieErrorPayload>>() {
+
+                    final Random randomRowKeySuffixGenerator = new Random(ERROR_TABLE_RANDOM_SEED_VALUE);
+
+                    @Override
+                    public HoodieRecord<HoodieErrorPayload> call(final GenericRecord genericRecord) {
+                        final HoodieKey hoodieKey = new HoodieKey(
+                            String.format(HOODIE_RECORD_KEY,
+                                randomRowKeySuffixGenerator.nextInt(ERROR_ROW_KEY_SUFFIX_MAX)), partitionPath);
+                        HoodieErrorPayload payload = new HoodieErrorPayload(genericRecord);
+                        return new HoodieRecord<>(hoodieKey, payload);
+                    }
                 }
             );
 
@@ -143,12 +155,24 @@ public final class ErrorTableUtil {
     public static void initErrorTableDataset(@NonNull final Configuration conf, @NotEmpty final String errorTableName)
         throws IOException {
         final ErrorTableConfiguration errorTableConf = new ErrorTableConfiguration(conf);
-        final HoodieConfiguration hoodieConf = HoodieConfiguration.newBuilder(errorTableName)
+        final HoodieConfiguration hoodieConf = HoodieConfiguration.newBuilder(conf, errorTableName)
                                                    .withBasePath(errorTableConf.getDestPath().toString())
                                                    .withTableName(errorTableName)
                                                    .enableMetrics(false)
                                                    .build();
-        HoodieUtil.initHoodieDataset(FSUtils.getFs(conf), hoodieConf);
+        HoodieUtil.initHoodieDataset(FSUtils.getFs(conf, Optional.of(hoodieConf.getBasePath())), hoodieConf);
+    }
+
+    public static void addErrorSchemaConfiguration(
+        @NonNull final Configuration configuration, @NonNull final Schema errorSchema,
+        @NotEmpty final String tableKey, @NotEmpty final String errorTableKey) {
+        // Add Error schema, target table and error table for spark conf to be retrieved later
+        configuration.setProperty(
+            SPARK_PROPERTIES_KEY_PREFIX + ERROR_SCHEMA_IDENTIFIER, errorSchema.toString());
+        configuration.setProperty(
+            SPARK_PROPERTIES_KEY_PREFIX + TABLE_KEY, tableKey);
+        configuration.setProperty(
+            SPARK_PROPERTIES_KEY_PREFIX + ERROR_TABLE_KEY, errorTableKey);
     }
 
     private static GenericRecord generateGenericErrorRecord(@NonNull final ErrorExtractor errorExtractor,

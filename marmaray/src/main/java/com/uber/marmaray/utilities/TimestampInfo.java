@@ -17,6 +17,7 @@
 package com.uber.marmaray.utilities;
 
 import com.google.common.base.Optional;
+import com.uber.marmaray.common.configuration.CassandraSinkConfiguration;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.ToString;
@@ -35,11 +36,17 @@ public class TimestampInfo implements Serializable {
     @Getter
     final boolean saveAsLongType;
 
+    @Getter
+    final String timestampFieldName;
+
     public boolean hasTimestamp() {
         return this.timestamp.isPresent();
     }
 
     public static TimestampInfo generateEmptyTimestampInfo() {
-        return new TimestampInfo(Optional.absent(), false);
+        return new TimestampInfo(
+          Optional.absent(),
+          false,
+          CassandraSinkConfiguration.DEFAULT_DISPERSAL_TIMESTAMP_FIELD_NAME);
     }
 }

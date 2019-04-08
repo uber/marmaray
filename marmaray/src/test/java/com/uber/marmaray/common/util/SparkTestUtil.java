@@ -16,6 +16,7 @@
  */
 package com.uber.marmaray.common.util;
 
+import com.uber.marmaray.common.spark.MarmarayKryoSerializer;
 import lombok.NonNull;
 import org.apache.spark.SparkConf;
 import org.apache.spark.SparkContext;
@@ -34,7 +35,8 @@ public class SparkTestUtil {
                 .set("spark.default.parallelism", "4")
                 // set the SPARK_LOCAL_IP address only for unit tests
                 .set("spark.driver.bindAddress", "127.0.0.1")
-                .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+                .set("spark.driver.host", "127.0.0.1")
+                .set("spark.serializer", MarmarayKryoSerializer.class.getName())
                 .set("spark.kryoserializer.buffer.max", "512m");
     }
 

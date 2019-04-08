@@ -17,6 +17,7 @@
 package com.uber.marmaray.common.converters.data;
 
 import com.google.common.base.Optional;
+import com.google.common.collect.ImmutableMap;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.converters.converterresult.ConverterResult;
 import com.uber.marmaray.common.data.ErrorData;
@@ -29,6 +30,9 @@ import com.uber.marmaray.common.data.ValidData;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.forkoperator.ForkFunction;
 import com.uber.marmaray.common.forkoperator.ForkOperator;
+import com.uber.marmaray.common.metrics.DataFeedMetricNames;
+import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.IMetricable;
 import com.uber.marmaray.utilities.ErrorExtractor;
 import com.uber.marmaray.utilities.ErrorTableUtil;
 import lombok.Getter;
@@ -44,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Implementations of the {@link AbstractDataConverter} interface will convert data records from one schema type
@@ -54,12 +59,13 @@ import java.util.List;
  * @param <OD> outputDataType
  */
 @Slf4j
-public abstract class AbstractDataConverter<IS, OS, ID, OD> implements Serializable {
+public abstract class AbstractDataConverter<IS, OS, ID, OD> implements Serializable, IMetricable {
     public static final long serialVersionUID = 1L;
     public static final Integer VALID_RECORD = 0;
     public static final Integer ERROR_RECORD = 1;
     private static final String SUCCESS = "SUCCESS";
     private static final String FAILURE = "FAILURE";
+    private static final String CONVERTER_TAG_NAME = "CONVERTER_NAME";
 
     @Getter @NonNull
     protected Configuration conf;
@@ -81,9 +87,16 @@ public abstract class AbstractDataConverter<IS, OS, ID, OD> implements Serializa
     @NonNull
     protected ErrorExtractor errorExtractor;
 
+    @NonNull
+    protected Optional<DataFeedMetrics> topicMetrics = Optional.absent();
+
     public AbstractDataConverter(@NonNull final Configuration conf, @NonNull final ErrorExtractor errorExtractor) {
         this.conf = conf;
         this.errorExtractor = errorExtractor;
+    }
+
+    public void setDataFeedMetrics(@NonNull final DataFeedMetrics topicMetrics) {
+        this.topicMetrics = Optional.of(topicMetrics);
     }
 
     public final RDDWrapper<OD> map(@NonNull final JavaRDD<ID> data) {
@@ -91,7 +104,9 @@ public abstract class AbstractDataConverter<IS, OS, ID, OD> implements Serializa
             new ForkOperator<>(data.map(r -> RawDataHelper.getRawData(r)),
                 new DataConversionFunction(), this.conf);
         converter.execute();
-
+        if (topicMetrics.isPresent()) {
+            reportMetrics(converter.getRddSize(), converter.getNumRddPartitions(), topicMetrics.get());
+        }
         // Write error records.
         ErrorTableUtil.writeErrorRecordsToErrorTable(data.context(), this.conf, Optional.absent(),
             new RDDWrapper<>(converter.getRDD(ERROR_RECORD).map(r -> (ErrorData) r), converter.getCount(ERROR_RECORD)),
@@ -102,6 +117,15 @@ public abstract class AbstractDataConverter<IS, OS, ID, OD> implements Serializa
     }
 
     protected abstract List<ConverterResult<ID, OD>> convert(@NonNull ID data) throws Exception;
+
+    private void reportMetrics(final long rddSize,
+                               final int numPartitions,
+                               @NonNull final DataFeedMetrics topicMetrics) {
+        final Map<String, String> tags = ImmutableMap.of(CONVERTER_TAG_NAME, this.getClass().getName());
+        topicMetrics.createLongMetric(DataFeedMetricNames.RDD_PARTITION_SIZE,
+            rddSize / Math.max(1, numPartitions), tags);
+        topicMetrics.createLongMetric(DataFeedMetricNames.NUM_RDD_PARTITIONS, numPartitions, tags);
+    }
 
     public class DataConversionFunction extends ForkFunction<IData> {
 

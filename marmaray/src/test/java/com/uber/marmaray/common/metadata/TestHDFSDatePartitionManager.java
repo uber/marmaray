@@ -43,7 +43,7 @@ public class TestHDFSDatePartitionManager {
 
     @Before
     public void setupTest() throws IOException {
-        this.fs = FSUtils.getFs(new Configuration());
+        this.fs = FSUtils.getFs(new Configuration(), Optional.absent());
     }
 
     @After
@@ -59,7 +59,6 @@ public class TestHDFSDatePartitionManager {
         this.fs.mkdirs(basePath);
 
         final HDFSDatePartitionManager pm = new HDFSDatePartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 DATESTR,
                 Optional.absent(),
@@ -84,7 +83,6 @@ public class TestHDFSDatePartitionManager {
         final Date startDate = sdf.parse("2017-05-15");
 
         final HDFSDatePartitionManager pm = new HDFSDatePartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 DATESTR,
                 Optional.of(startDate),
@@ -107,7 +105,6 @@ public class TestHDFSDatePartitionManager {
         this.fs.mkdirs(new Path(RAW_DATA_PATH, "datestr=2017-05-02"));
 
         final HDFSDatePartitionManager pm = new HDFSDatePartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 DATESTR,
                 Optional.absent(),
@@ -137,7 +134,6 @@ public class TestHDFSDatePartitionManager {
         final StringValue val1 = new StringValue("datestr=2017-05-02");
 
         final HDFSDatePartitionManager pm = new HDFSDatePartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 DATESTR,
                 Optional.absent(),
@@ -169,7 +165,6 @@ public class TestHDFSDatePartitionManager {
         final StringValue val1 = new StringValue("datestr=2017-06-02");
 
         final HDFSDatePartitionManager pm = new HDFSDatePartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 DATESTR,
                 Optional.of(startDate),
@@ -201,7 +196,6 @@ public class TestHDFSDatePartitionManager {
         final StringValue val1 = new StringValue("datestr=2017-05-02");
 
         final HDFSDatePartitionManager pm = new HDFSDatePartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 DATESTR,
                 Optional.of(startDate),
@@ -230,7 +224,6 @@ public class TestHDFSDatePartitionManager {
         this.fs.mkdirs(new Path(partition1, FILE1));
 
         final HDFSDatePartitionManager pm = new HDFSDatePartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 DATESTR,
                 Optional.absent(),
@@ -258,7 +251,6 @@ public class TestHDFSDatePartitionManager {
         this.fs.mkdirs(new Path(partition1, FILE1));
 
         final HDFSDatePartitionManager pm = new HDFSDatePartitionManager(JOBNAME,
-                HDFSTestConstants.BASE_METADATA_PATH,
                 RAW_DATA_PATH,
                 DATESTR,
                 Optional.absent(),

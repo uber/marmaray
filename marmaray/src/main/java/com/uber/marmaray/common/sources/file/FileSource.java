@@ -17,6 +17,7 @@
 
 package com.uber.marmaray.common.sources.file;
 
+import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.FileSourceConfiguration;
@@ -40,7 +41,7 @@ import java.util.stream.Collectors;
 public class FileSource implements ISource<FileWorkUnitCalculator.FileWorkUnitCalculatorResult, FileRunState> {
 
     private final FileSourceConfiguration conf;
-    private final JavaSparkContext jsc;
+    private final Optional<JavaSparkContext> jsc;
     private final FileSourceDataConverter converter;
 
     @Override
@@ -64,7 +65,7 @@ public class FileSource implements ISource<FileWorkUnitCalculator.FileWorkUnitCa
                 .map(LocatedFileStatus::getPath)
                 .map(Path::toString)
                 .collect(Collectors.joining(","));
-            final RDD<String> fileRows = this.jsc.sc().textFile(filesToRead, 1);
+            final RDD<String> fileRows = this.jsc.get().sc().textFile(filesToRead, 1);
             return this.converter.map(fileRows.toJavaRDD()).getData();
 
         } catch (IOException e) {

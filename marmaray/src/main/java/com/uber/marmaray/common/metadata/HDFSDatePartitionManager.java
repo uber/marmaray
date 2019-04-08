@@ -46,12 +46,11 @@ public class HDFSDatePartitionManager extends HDFSPartitionManager {
     private final Optional<Date> startDate;
 
     public HDFSDatePartitionManager(@NotEmpty  final String metadataKey,
-                                    @NotEmpty final String genericBaseMetadataPath,
                                     @NotEmpty final String genericBaseDataPath,
                                     @NotEmpty final String partitionKeyName,
                                     @NonNull final Optional<Date> startDate,
                                     @NonNull final FileSystem fileSystem) throws IOException {
-        super(metadataKey, genericBaseMetadataPath, genericBaseDataPath, fileSystem);
+        super(metadataKey, genericBaseDataPath, fileSystem);
         this.partitionKeyName = partitionKeyName + StringTypes.EQUAL;
         this.hasPartitionKeyInHDFSPartitionPath = hasPartitionKeyNameInPartition();
         this.startDate = startDate;

@@ -25,8 +25,10 @@ import lombok.Getter;
 import lombok.NonNull;
 import org.hibernate.validator.constraints.NotEmpty;
 
+import java.io.Serializable;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -35,12 +37,20 @@ import java.util.Set;
  * and {@link DataFeedMetrics#createTimerMetric}, and reported using {@link DataFeedMetrics#gaugeAll}
  */
 @Getter
-public class DataFeedMetrics implements Reportable {
+public class DataFeedMetrics implements Reportable, Serializable {
+
     public static final String DATA_FEED_NAME = "datafeed";
+
     private static final String JOB_TAG = "job";
+
     @Getter
     private final Set<Metric> metricSet = Sets.newHashSet();
+
+    @Getter
+    private final Set<Metric> failureMetricSet = Sets.newHashSet();
+
     private final Map<String, String> baseTags;
+
     @NotEmpty
     private final String jobName;
 
@@ -59,6 +69,26 @@ public class DataFeedMetrics implements Reportable {
         metric.addTags(additionalTags);
         this.metricSet.add(metric);
         return metric;
+    }
+
+    public LongMetric createLongMetric(@NonNull final String metricName,
+                                       final long metricValue) {
+        return createLongMetric(metricName, metricValue, new HashMap<>());
+    }
+
+    public LongMetric createLongFailureMetric(@NonNull final String metricName,
+                                              final long metricValue,
+                                              @NonNull final Map<String, String> additionalTags) {
+        final LongMetric metric = new LongMetric(metricName, metricValue);
+        metric.addTags(getBaseTags());
+        metric.addTags(additionalTags);
+        this.failureMetricSet.add(metric);
+        return metric;
+    }
+
+    public LongMetric createLongFailureMetric(@NonNull final String metricName,
+                                              final long metricValue) {
+        return createLongFailureMetric(metricName, metricValue, new HashMap<>());
     }
 
     public TimerMetric createTimerMetric(@NonNull final String metricName) {
@@ -80,7 +110,22 @@ public class DataFeedMetrics implements Reportable {
         return metric;
     }
 
-    public void gaugeAll(final IReporter reporter) {
+    public static Map<String, String> createAdditionalTags(@NonNull final String key, @NonNull final String val) {
+        final Map<String, String> additionalTag = new HashMap<>();
+        additionalTag.put(key, val);
+        return additionalTag;
+    }
+
+    public void gauageFailureMetric(final IReporter reporter) {
+        this.failureMetricSet.forEach(reporter::gauge);
+    }
+
+    public void guageNonFailureMetric(final IReporter reporter) {
         this.metricSet.forEach(reporter::gauge);
+    }
+
+    public void gaugeAll(final IReporter reporter) {
+        guageNonFailureMetric(reporter);
+        gauageFailureMetric(reporter);
     }
 }

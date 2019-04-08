@@ -19,17 +19,18 @@ package com.uber.marmaray.common;
 import com.google.common.base.Preconditions;
 import com.uber.marmaray.common.data.IData;
 import com.uber.marmaray.utilities.SparkUtil;
+import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.hibernate.validator.constraints.NotEmpty;
-import scala.reflect.ClassManifestFactory;
-import scala.reflect.ClassTag;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -43,45 +44,117 @@ import static org.apache.avro.Schema.Type.RECORD;
 @Slf4j
 public class AvroPayload implements IPayload<GenericRecord>, IData, Serializable {
 
-    private static final ClassTag<GenericRecord> recordClassTag = ClassManifestFactory.fromClass(GenericRecord.class);
     @NonNull
-    private final Map<String, Object> rootFields = new HashMap<>();
-    @NonNull
-    private final byte[] byteRecord;
+    private IAvroPayloadInternal payloadInterval;
 
     public AvroPayload(@NonNull final GenericRecord record) {
-        this.byteRecord = SparkUtil.serialize(record, recordClassTag);
-        for (final Schema.Field f : record.getSchema().getFields()) {
-            if (!RECORD.equals(f.schema().getType())) {
-                this.rootFields.put(f.name(), record.get(f.name()));
-            }
-        }
+        this(record, true);
     }
 
     public AvroPayload(@NonNull final GenericRecord record,
         @NonNull final List<String> fieldsToCache) {
-        this.byteRecord = SparkUtil.serialize(record, recordClassTag);
-        for (final String f : fieldsToCache) {
-            this.rootFields.put(f, record.get(f));
+        this.payloadInterval = new SerializedAvroPayloadInternal(record, fieldsToCache);
+    }
+
+    public AvroPayload(@NonNull final GenericRecord record, final boolean serializeRecord) {
+        this.payloadInterval =
+            serializeRecord ? new SerializedAvroPayloadInternal(record) : new AvroPayloadInternal(record);
+    }
+
+    @Override
+    public GenericRecord getData() {
+        return this.payloadInterval.getData();
+    }
+
+    public Object getField(@NotEmpty final String fieldName) {
+        return this.payloadInterval.getField(fieldName);
+    }
+
+    public static List<Class> getSerializationClasses() {
+        return Arrays.asList(AvroPayload.class,
+            IAvroPayloadInternal.class,
+            AvroPayloadInternal.class,
+            SerializedAvroPayloadInternal.class);
+    }
+
+    private interface IAvroPayloadInternal {
+
+        /**
+         * returns cached {@link GenericRecord} data.
+         */
+        GenericRecord getData();
+
+        /**
+         * Returns field stored at root level.
+         */
+        Object getField(@NotEmpty final String fieldName);
+    }
+
+    @AllArgsConstructor
+    private static class AvroPayloadInternal implements IAvroPayloadInternal {
+
+        @NonNull
+        private final GenericRecord record;
+
+        @Override
+        public GenericRecord getData() {
+            return this.record;
+        }
+
+        @Override
+        public Object getField(@NotEmpty final String fieldName) {
+            return this.record.get(fieldName);
         }
     }
 
     /**
-     * Avoid calling it to fetch top level record fields.
+     * It internally stores AvroPayload as byte[] to reduce memory footprint.
      */
-    public GenericRecord getData() {
-        return SparkUtil.deserialize(this.byteRecord, recordClassTag);
-    }
+    private static class SerializedAvroPayloadInternal implements IAvroPayloadInternal {
 
-    /**
-     * It only supports fetching fields at the root level of the record which are of type other than
-     * {@link org.apache.avro.generic.GenericData.Record}.
-     *
-     * @param fieldName name of the field at the root level of the record.
-     */
-    public Object getField(@NotEmpty final String fieldName) {
-        Preconditions.checkState(this.rootFields.containsKey(fieldName),
-            "field is not cached at root level :" + fieldName);
-        return this.rootFields.get(fieldName);
+        private final Map<String, Object> rootFields;
+        private final byte[] byteRecord;
+
+        public SerializedAvroPayloadInternal(@NonNull final GenericRecord record) {
+            this(record, getFieldsToCache(record));
+        }
+
+        public SerializedAvroPayloadInternal(@NonNull final GenericRecord record,
+            @NonNull final List<String> fieldsToCache) {
+            this.byteRecord = SparkUtil.serialize(record, SparkUtil.GENERIC_RECORD_CLASS_TAG);
+            this.rootFields = new HashMap<>();
+            for (final String f : fieldsToCache) {
+                this.rootFields.put(f, record.get(f));
+            }
+        }
+
+        /**
+         * Avoid calling it to fetch top level record fields.
+         */
+        public GenericRecord getData() {
+            return SparkUtil.deserialize(this.byteRecord, SparkUtil.GENERIC_RECORD_CLASS_TAG);
+        }
+
+        /**
+         * It only supports fetching fields at the root level of the record which are of type other than
+         * {@link org.apache.avro.generic.GenericData.Record}.
+         *
+         * @param fieldName name of the field at the root level of the record.
+         */
+        public Object getField(@NotEmpty final String fieldName) {
+            Preconditions.checkState(this.rootFields.containsKey(fieldName),
+                "field is not cached at root level :" + fieldName);
+            return this.rootFields.get(fieldName);
+        }
+
+        private static List<String> getFieldsToCache(@NonNull final GenericRecord record) {
+            final List<String> fieldsToCache = new LinkedList<>();
+            for (final Schema.Field f : record.getSchema().getFields()) {
+                if (!RECORD.equals(f.schema().getType())) {
+                    fieldsToCache.add(f.name());
+                }
+            }
+            return fieldsToCache;
+        }
     }
 }

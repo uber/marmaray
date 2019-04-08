@@ -26,10 +26,12 @@ import scala.Tuple2;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * {@link ExecutionTimeJobExecutionStrategy} is a {@link IJobExecutionStrategy} that sorts the {@link JobDag}s by
@@ -60,9 +62,15 @@ public class ExecutionTimeJobExecutionStrategy implements IJobExecutionStrategy 
     }
 
     @Override
-    public List<JobDag> sort(@NonNull final Queue<JobDag> inputJobDags) {
-        final List<JobDag> result = new ArrayList<>(inputJobDags.size());
+    public List<Dag> sort(@NonNull final Queue<Dag> inputJobDags) {
+        final Map<String, Integer> initialTopicOrdering = new HashMap<>();
+        final AtomicInteger preTopicOrderingCounter = new AtomicInteger(0);
+        final AtomicInteger postTopicOrderingCounter = new AtomicInteger(0);
+        inputJobDags.stream().forEach(jobDag -> initialTopicOrdering.put(jobDag.getDataFeedName(),
+            preTopicOrderingCounter.incrementAndGet()));
+        final List<Dag> result = new ArrayList<>(inputJobDags.size());
         final long lastExecutionTimeThresholdMillis = TimeUnit.HOURS.toMillis(this.lastExecutionTimeThresholdHours);
+        log.info("shuffled topic ordering");
         inputJobDags.stream().map(dag -> {
                 try {
                     final Optional<Map<String, String>> contents = this.tracker.get(dag.getDataFeedName());
@@ -82,7 +90,16 @@ public class ExecutionTimeJobExecutionStrategy implements IJobExecutionStrategy 
                             "Unable to get metadata for dag %s : ", dag.getDataFeedName()), e);
                 }
             }).sorted((o1, o2) -> o2._2().compareTo(o1._2()))
-            .forEach(tuple -> result.add(tuple._1()));
+            .forEach(
+                tuple -> {
+                    log.info("topic ordering for {} changed from {} to {} - with weight {}",
+                        tuple._1().getDataFeedName(),
+                        initialTopicOrdering.get(tuple._1.getDataFeedName()),
+                        postTopicOrderingCounter.incrementAndGet(),
+                        tuple._2);
+                    result.add(tuple._1());
+                });
+
         return result;
     }
 }

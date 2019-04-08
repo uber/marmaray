@@ -80,7 +80,8 @@ public class TestCassandraSinkSchemaManager {
         final CassandraSinkSchemaManager schemaManager = new CassandraSinkSchemaManager(
                 schema,
                 Collections.singletonList("country_code"),
-                Collections.EMPTY_LIST);
+                Collections.EMPTY_LIST,
+                Optional.absent());
         final String createTableStmt = schemaManager.generateCreateTableStmt();
         final String expected = "CREATE TABLE IF NOT EXISTS marmaray.crossfit_gyms (country_code text,"
                 + "state_province text,city text,capacity int,gym_name text, PRIMARY KEY ((country_code))) ";
@@ -98,7 +99,8 @@ public class TestCassandraSinkSchemaManager {
         final CassandraSinkSchemaManager schemaManager = new CassandraSinkSchemaManager(
                 schema,
                 Collections.singletonList("country_code"),
-                Collections.singletonList(new ClusterKey("state_province", ClusterKey.Order.DESC)));
+                Collections.singletonList(new ClusterKey("state_province", ClusterKey.Order.DESC)),
+                Optional.absent());
         final String createTableStmt = schemaManager.generateCreateTableStmt();
         final String expected = "CREATE TABLE IF NOT EXISTS marmaray.crossfit_gyms (country_code text," +
                 "state_province text,city text,capacity int,gym_name text, PRIMARY KEY ((country_code),state_province))"
@@ -117,7 +119,8 @@ public class TestCassandraSinkSchemaManager {
         final CassandraSinkSchemaManager schemaManager = new CassandraSinkSchemaManager(
                 schema,
                 Arrays.asList("country_code", "state_province"),
-                Collections.EMPTY_LIST);
+                Collections.EMPTY_LIST,
+                Optional.absent());
         final String createTableStmt = schemaManager.generateCreateTableStmt();
         final String expected = "CREATE TABLE IF NOT EXISTS marmaray.crossfit_gyms (country_code text," +
                 "state_province text,city text,capacity int,gym_name text, PRIMARY KEY ((country_code,state_province))) ";
@@ -136,7 +139,8 @@ public class TestCassandraSinkSchemaManager {
                 schema,
                 Arrays.asList("country_code", "state_province"),
                 Arrays.asList(new ClusterKey("city", ClusterKey.Order.DESC),
-                        new ClusterKey("gym_name", ClusterKey.Order.ASC)));
+                        new ClusterKey("gym_name", ClusterKey.Order.ASC)),
+                Optional.absent());
         final String createTableStmt = schemaManager.generateCreateTableStmt();
         final String expected = "CREATE TABLE IF NOT EXISTS marmaray.crossfit_gyms (country_code text," +
                 "state_province text,city text,capacity int,gym_name text, PRIMARY KEY ((country_code,state_province)" +
@@ -160,10 +164,12 @@ public class TestCassandraSinkSchemaManager {
                 schema,
                 Arrays.asList("country_code", "state_province"),
                 Arrays.asList(new ClusterKey("city", ClusterKey.Order.DESC),
-                        new ClusterKey("gym_name", ClusterKey.Order.ASC)));
+                        new ClusterKey("gym_name", ClusterKey.Order.ASC)),
+                Optional.absent());
 
         final List<String> alterTableQueries =
-                schemaManager.generateAlterTableStmt(fields.stream().map(f -> f.getFieldName()).collect(Collectors.toList()));
+                schemaManager.generateAlterTableStmt(fields.stream()
+                        .collect(Collectors.toMap(CassandraSchemaField::getFieldName, CassandraSchemaField::getType)));
 
         Assert.assertTrue(alterTableQueries.size() == 1);
         Assert.assertEquals("ALTER TABLE marmaray.crossfit_gyms ADD new_field1 text", alterTableQueries.get(0));
@@ -183,10 +189,12 @@ public class TestCassandraSinkSchemaManager {
                 schema,
                 Arrays.asList("country_code", "state_province"),
                 Arrays.asList(new ClusterKey("city", ClusterKey.Order.DESC),
-                        new ClusterKey("gym_name", ClusterKey.Order.ASC)));
+                        new ClusterKey("gym_name", ClusterKey.Order.ASC)),
+                Optional.absent());
 
         final List<String> alterTableQueries =
-                schemaManager.generateAlterTableStmt(fields.stream().map(f -> f.getFieldName()).collect(Collectors.toList()));
+                schemaManager.generateAlterTableStmt(fields.stream()
+                    .collect(Collectors.toMap(CassandraSchemaField::getFieldName, CassandraSchemaField::getType)));
 
         Assert.assertTrue(alterTableQueries.size() == 2);
         Assert.assertEquals("ALTER TABLE marmaray.crossfit_gyms ADD new_field1 text", alterTableQueries.get(0));
@@ -204,12 +212,13 @@ public class TestCassandraSinkSchemaManager {
                 schema,
                 Arrays.asList("country_code", "state_province"),
                 Arrays.asList(new ClusterKey("city", ClusterKey.Order.DESC),
-                        new ClusterKey("gym_name", ClusterKey.Order.ASC)));
-        final String cfQuery = schemaManager.getColumnNamesFromColumnFamilyQuery();
-        final String tableQuery = schemaManager.getColumnNamesFromTableQuery();
-        Assert.assertEquals("SELECT column_name FROM system_schema.columns WHERE "
+                        new ClusterKey("gym_name", ClusterKey.Order.ASC)),
+                Optional.absent());
+        final String cfQuery = schemaManager.getColumnsFromColumnFamilyQuery();
+        final String tableQuery = schemaManager.getColumnsFromTableQuery();
+        Assert.assertEquals("SELECT column_name, type FROM system_schema.columns WHERE "
                 + "keyspace_name = 'marmaray' AND columnfamily_name = 'crossfit_gyms'", cfQuery);
-        Assert.assertEquals("SELECT column_name FROM system_schema.columns WHERE "
+        Assert.assertEquals("SELECT column_name, type FROM system_schema.columns WHERE "
                 + "keyspace_name = 'marmaray' AND table_name = 'crossfit_gyms'", tableQuery);
     }
 
@@ -221,101 +230,136 @@ public class TestCassandraSinkSchemaManager {
                 schema,
                 Arrays.asList("country_code", "state_province"),
                 Collections.EMPTY_LIST,
-                Optional.of(10000L));
+                Optional.of(10000L),
+                Optional.absent(),
+                Optional.absent(),
+                false);
         final String insertStmt = schemaManagerNoTTL.generateInsertStmt();
         final String expected = "INSERT INTO marmaray.crossfit_gyms (  country_code, state_province, city, "
                 + "capacity, gym_name ) VALUES ( ?,?,?,?,? ) USING TTL 10000";
-        Assert.assertEquals(expected, insertStmt);
+        Assert.assertEquals(expected, insertStmt.trim());
+
 
         final CassandraSinkSchemaManager schemaManagerWithTTL = new CassandraSinkSchemaManager(
                 schema,
                 Arrays.asList("country_code", "state_province"),
                 Collections.EMPTY_LIST,
-                Optional.absent());
+                Optional.absent(),
+                Optional.absent(),
+                Optional.absent(),
+                false);
         final String insertStmtWithTTL = schemaManagerWithTTL.generateInsertStmt();
-        Assert.assertEquals(expected.replace("USING TTL 10000", StringTypes.EMPTY), insertStmtWithTTL);
+        Assert.assertEquals(expected.replace("USING TTL 10000", StringTypes.EMPTY).trim(), insertStmtWithTTL.trim());
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testPartitionAndClusterKeyHaveSameName() {
         final CassandraSchema schema = new CassandraSchema(KEY_SPACE, TABLE, fields);
         final CassandraSinkSchemaManager schemaManager = new CassandraSinkSchemaManager(
                 schema,
                 Arrays.asList("country_code", "state_province"),
                 Arrays.asList(new ClusterKey("country_code", ClusterKey.Order.DESC),
-                        new ClusterKey("gym_name", ClusterKey.Order.ASC)));
-        Assert.fail();
+                        new ClusterKey("gym_name", ClusterKey.Order.ASC)),
+                Optional.absent());
+        Assert.assertEquals(schemaManager.getValidSchema(), false);
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testEmptyKeySpace() {
         final CassandraSchema schema = new CassandraSchema(StringTypes.EMPTY, TABLE, fields);
         final CassandraSinkSchemaManager schemaManager = new CassandraSinkSchemaManager(
                 schema,
                 Arrays.asList("country_code", "state_province"),
                 Arrays.asList(new ClusterKey("country_code", ClusterKey.Order.DESC),
-                        new ClusterKey("gym_name", ClusterKey.Order.ASC)));
-        Assert.fail();
+                        new ClusterKey("gym_name", ClusterKey.Order.ASC)),
+                Optional.absent());
+        Assert.assertEquals(schemaManager.getValidSchema(), false);
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testEmptyTableName() {
         final CassandraSchema schema = new CassandraSchema(KEY_SPACE, StringTypes.EMPTY, fields);
         final CassandraSinkSchemaManager schemaManager = new CassandraSinkSchemaManager(
                 schema,
                 Arrays.asList("country_code", "state_province"),
-                Collections.EMPTY_LIST);
-        Assert.fail();
+                Collections.EMPTY_LIST,
+                Optional.absent());
+        Assert.assertEquals(schemaManager.getValidSchema(), false);
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testFieldsIsNull() {
         final CassandraSchema schema = new CassandraSchema(KEY_SPACE, TABLE, null);
         final CassandraSinkSchemaManager schemaManager = new CassandraSinkSchemaManager(
                 schema,
                 Arrays.asList("country_code", "state_province"),
-                Collections.EMPTY_LIST);
-        Assert.fail();
+                Collections.EMPTY_LIST,
+                Optional.absent());
+        Assert.assertEquals(schemaManager.getValidSchema(), false);
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testFieldsIsEmpty() {
         final CassandraSchema schema = new CassandraSchema(KEY_SPACE, TABLE, Collections.EMPTY_LIST);
         final CassandraSinkSchemaManager schemaManager = new CassandraSinkSchemaManager(
                 schema,
                 Arrays.asList("country_code", "state_province"),
-                Collections.EMPTY_LIST);
-        Assert.fail();
+                Collections.EMPTY_LIST,
+                Optional.absent());
+        Assert.assertEquals(schemaManager.getValidSchema(), false);
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testPartitionKeysIsEmpty() {
         final CassandraSchema schema = new CassandraSchema(KEY_SPACE, TABLE, fields);
         final CassandraSinkSchemaManager schemaManager = new CassandraSinkSchemaManager(
                 schema,
                 Collections.EMPTY_LIST,
-                Collections.EMPTY_LIST);
-        Assert.fail();
+                Collections.EMPTY_LIST,
+                Optional.absent());
+        Assert.assertEquals(schemaManager.getValidSchema(), false);
     }
 
-    @Test(expected = IllegalStateException.class)
-    public void tesClusterKeyIsNotInFieldNames() {
+    @Test
+    public void testClusterKeyIsNotInFieldNames() {
         final CassandraSchema schema = new CassandraSchema(KEY_SPACE, TABLE, fields);
         final CassandraSinkSchemaManager schemaManager = new CassandraSinkSchemaManager(
                 schema,
                 Collections.singletonList("country_code"),
-                Collections.singletonList(new ClusterKey("non_cluster_field_name", ClusterKey.Order.ASC)));
-        Assert.fail();
+                Collections.singletonList(new ClusterKey("non_cluster_field_name", ClusterKey.Order.ASC)),
+                Optional.absent());
+        Assert.assertEquals(schemaManager.getValidSchema(), false);
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testPartitionKeyIsNotInFieldNames() {
         final CassandraSchema schema = new CassandraSchema(KEY_SPACE, TABLE, fields);
         final CassandraSinkSchemaManager schemaManager = new CassandraSinkSchemaManager(
                 schema,
                 Collections.singletonList("non_field_name"),
-                Collections.EMPTY_LIST);
+                Collections.EMPTY_LIST,
+                Optional.absent());
+        Assert.assertEquals(schemaManager.getValidSchema(), false);
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testSchemaMismatch() {
+        final List<CassandraSchemaField> wrongFields = fields.stream()
+            .map( f -> f.getFieldName().equals("city")
+                ? new CassandraSchemaField("city", CassandraSchemaField.LONG_TYPE)
+                : f)
+            .collect(Collectors.toList());
+        final CassandraSchema schema = new CassandraSchema(KEY_SPACE, TABLE, wrongFields);
+        final CassandraSinkSchemaManager schemaManager = new CassandraSinkSchemaManager(
+            schema,
+            Arrays.asList("country_code", "state_province"),
+            Arrays.asList(new ClusterKey("city", ClusterKey.Order.DESC),
+                new ClusterKey("gym_name", ClusterKey.Order.ASC)),
+                Optional.absent());
+        schemaManager.generateAlterTableStmt(fields.stream()
+            .collect(Collectors.toMap(CassandraSchemaField::getFieldName, CassandraSchemaField::getType)));
         Assert.fail();
+
     }
 
     private void validateCreateTable(final Session session) {
@@ -330,7 +374,7 @@ public class TestCassandraSinkSchemaManager {
                 Arrays.asList("country_code", "state_province", "city", "capacity", "gym_name")));
     }
 
-    private void validateAlterTable(final Session session, List<String> newColumns) {
+    private void validateAlterTable(final Session session, final List<String> newColumns) {
         final ResultSet results = session.execute(getColumnsQuery);
 
         final List<String> columns = results.all()
@@ -350,7 +394,8 @@ public class TestCassandraSinkSchemaManager {
                 schema,
                 Arrays.asList("country_code", "state_province"),
                 Arrays.asList(new ClusterKey("city", ClusterKey.Order.DESC),
-                        new ClusterKey("gym_name", ClusterKey.Order.ASC)));
+                        new ClusterKey("gym_name", ClusterKey.Order.ASC)),
+                Optional.absent());
         final String createTableStmt = schemaManager.generateCreateTableStmt();
 
         try (final Session session = getSession()) {

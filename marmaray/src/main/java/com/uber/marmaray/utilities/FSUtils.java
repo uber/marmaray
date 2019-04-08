@@ -19,6 +19,7 @@ package com.uber.marmaray.utilities;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
+import com.google.common.base.Optional;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -44,10 +45,21 @@ public class FSUtils {
             Comparator.comparingLong(f1 -> Long.parseLong(f1.getPath().getName()));
 
     /**
-     * It returns FileSystem based on fs.defaultFS property defined in conf.
+     * It returns FileSystem based on Hadoop configuration which is built from the conf passed and an optional path
      */
-    public static FileSystem getFs(final Configuration conf) throws IOException {
-        return FileSystem.get((new HadoopConfiguration(conf)).getHadoopConf());
+    public static FileSystem getFs(@NonNull final Configuration conf,
+                                   @NonNull final Optional<String> path) throws IOException {
+        return getFs(new HadoopConfiguration(conf).getHadoopConf(), path);
+    }
+
+    /**
+     * It returns FileSystem based on Hadoop Configuration and the Optional Path param
+     */
+    public static FileSystem getFs(@NonNull final org.apache.hadoop.conf.Configuration hadoopConf,
+                                   @NonNull final Optional<String> path) throws IOException {
+        final FileSystem fs = path.isPresent() ? new Path(path.get()).getFileSystem(hadoopConf)
+                                               : FileSystem.get(hadoopConf);
+        return fs;
     }
 
     public static void deleteHDFSMetadataFiles(@NonNull final FileStatus[] fileStatuses,

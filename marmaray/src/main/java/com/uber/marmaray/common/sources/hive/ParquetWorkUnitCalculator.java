@@ -25,17 +25,22 @@ import com.uber.marmaray.common.metadata.HDFSPartitionManager;
 import com.uber.marmaray.common.metadata.IMetadataManager;
 import com.uber.marmaray.common.metadata.MetadataConstants;
 import com.uber.marmaray.common.metadata.StringValue;
+import com.uber.marmaray.common.metrics.DataFeedMetricNames;
 import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.ErrorCauseTagNames;
 import com.uber.marmaray.common.metrics.IChargebackCalculator;
 import com.uber.marmaray.common.metrics.JobMetrics;
+import com.uber.marmaray.common.metrics.ModuleTagNames;
 import com.uber.marmaray.common.sources.IWorkUnitCalculator;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.fs.FileSystem;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class ParquetWorkUnitCalculator implements
@@ -50,19 +55,20 @@ public class ParquetWorkUnitCalculator implements
     @Getter
     private final HiveSourceConfiguration hiveConf;
 
+    @Getter
+    private Optional<DataFeedMetrics> dataFeedMetrics = Optional.absent();
+
     public ParquetWorkUnitCalculator(@NonNull final HiveSourceConfiguration hiveConf,
                                      @NonNull final FileSystem fs) throws IOException {
         this.hiveConf = hiveConf;
         final PartitionType partitionType = hiveConf.getPartitionType();
-        log.info("Create partition manger with partition type: {}", partitionType);
+        log.info("Create partition manager with partition type: {}", partitionType);
         if (partitionType.equals(PartitionType.NONE) || partitionType.equals(PartitionType.NORMAL)) {
             // create partition manager internally
             this.partitionManager = new HDFSPartitionManager(hiveConf.getJobName(),
-                    hiveConf.getBaseMetadataPath(),
                     hiveConf.getDataPath(), fs);
         } else if (partitionType.equals(PartitionType.DATE)) {
             this.partitionManager = new HDFSDatePartitionManager(hiveConf.getJobName(),
-                    hiveConf.getBaseMetadataPath(),
                     hiveConf.getDataPath(),
                     hiveConf.getPartitionKeyName().get(),
                     getHiveConf().getStartDate(),
@@ -77,6 +83,9 @@ public class ParquetWorkUnitCalculator implements
     public void setDataFeedMetrics(final DataFeedMetrics dataFeedMetrics) {
         // ignored, no need to compute data feed level metrics for now.
         // Data is either dispersed or not and row count is tracked as job level metric
+
+        // use datafeedMetric to expose errors
+        this.dataFeedMetrics = Optional.of(dataFeedMetrics);
     }
 
     @Override public void setJobMetrics(final JobMetrics jobMetrics) {
@@ -90,10 +99,29 @@ public class ParquetWorkUnitCalculator implements
     @Override
     public void initPreviousRunState(@NonNull final IMetadataManager<StringValue> metadataManager) {
         try {
-            final Optional<StringValue> latestCheckpoint = metadataManager.get(MetadataConstants.CHECKPOINT_KEY);
-            log.info("Get latest change point: {}", latestCheckpoint);
-            this.nextPartition = this.partitionManager.getNextPartition(latestCheckpoint);
+            final Optional<StringValue> latestCheckpoint;
+            // Backfill dispersal given a specific partition value
+            if (this.hiveConf.getPartition().isPresent()) {
+                latestCheckpoint = this.hiveConf.getPartition();
+                final List<String> partitionList = this.partitionManager.getExistingPartitions()
+                        .stream()
+                        .filter(partition -> partition.contains(latestCheckpoint.get().getValue()))
+                        .collect(Collectors.toList());
+                this.nextPartition = partitionList.isEmpty() ? Optional.absent() : Optional.of(partitionList.get(0));
+            } else {
+                latestCheckpoint = metadataManager.get(MetadataConstants.CHECKPOINT_KEY);
+                this.nextPartition = this.partitionManager.getNextPartition(latestCheckpoint);
+            }
+
+            log.info("Get latest change point: {}",
+                    latestCheckpoint.isPresent() ? latestCheckpoint.get().getValue() : Optional.absent());
         } catch (final IOException e) {
+            if (this.dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get()
+                        .createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                                DataFeedMetricNames.getErrorModuleCauseTags(ModuleTagNames.WORK_UNIT_CALCULATOR,
+                                        ErrorCauseTagNames.NO_DATA));
+            }
             throw new JobRuntimeException("Unable to get the next partition.  Error message: " + this.nextPartition, e);
         }
     }
@@ -110,13 +138,12 @@ public class ParquetWorkUnitCalculator implements
          * Until we add Cassandra metadata information, we assume explicitly this is a HDFSPartitionManager.
          * Todo: T898695 - Implement metadata manager using Cassandra backend
          */
-
         if (!this.nextPartition.isPresent()) {
             log.warn("No partition was found to process.  Reusing latest checkpoint if exists as checkpoint key");
             return;
         }
 
-        if (partitionManager.isSinglePartition()) {
+        if (this.partitionManager.isSinglePartition()) {
             log.info("Single partition manager, save next partition {} in metadata manager", this.partitionManager);
             metadataManager.set(MetadataConstants.CHECKPOINT_KEY, new StringValue(this.nextPartition.get()));
         } else {
@@ -147,8 +174,8 @@ public class ParquetWorkUnitCalculator implements
          * value from next run state will be persisted in the metadata as a checkpoint.
          */
         final HiveRunState nextRunState = new HiveRunState(this.nextPartition);
-        final List<String> workUnits = nextPartition.isPresent() ? Collections.singletonList(nextPartition.get())
-                : Collections.EMPTY_LIST;
+        final List<String> workUnits = this.nextPartition.isPresent()
+                ? Collections.singletonList(this.nextPartition.get()) : Collections.EMPTY_LIST;
         return new ParquetWorkUnitCalculatorResult(workUnits, nextRunState);
     }
 

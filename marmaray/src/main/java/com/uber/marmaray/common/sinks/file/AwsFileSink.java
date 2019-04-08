@@ -32,27 +32,38 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.util.IOUtils;
 import com.uber.marmaray.common.AvroPayload;
+import com.uber.marmaray.common.DispersalLengthType;
 import com.uber.marmaray.common.DispersalType;
 import com.uber.marmaray.common.configuration.AwsConfiguration;
 import com.uber.marmaray.common.configuration.FileSinkConfiguration;
 import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.converters.data.FileSinkDataConverter;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
+import com.uber.marmaray.common.metrics.DataFeedMetricNames;
+import com.uber.marmaray.common.metrics.ErrorCauseTagNames;
+import com.uber.marmaray.common.metrics.ModuleTagNames;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.spark.api.java.JavaRDD;
+import org.hibernate.validator.constraints.NotEmpty;
 import org.spark_project.guava.annotations.VisibleForTesting;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.Date;
 
 /**
  * {@link AwsFileSink} implements {@link FileSink} interface to build a FileSink
- * that first convert data to String with csv format
+ * that first convert data to String using sink converter {csv, sequence, ....}
  * and then save to Aws bucket with config defined in {@link AwsConfiguration}
  */
 @Slf4j
@@ -91,14 +102,19 @@ public class AwsFileSink extends FileSink {
      * @param path  source file path
      * @param partNum partition number of the file
      */
-    private void uploadFileToS3(@NonNull final FileSystem fileSystem,
-                                @NonNull final Path path, @NonNull final int partNum) {
+    private void uploadFileToS3(@NonNull final FileSystem fileSystem, @NonNull final Path path,
+                                @NonNull final int partNum, final Date date) {
         byte[] contentBytes = new byte [0];
         log.info("Start upload file to S3 with partition num: {}", partNum);
         log.info("Start calculating file bytes.");
         try (final InputStream input = fileSystem.open(path)) {
             contentBytes = IOUtils.toByteArray(input);
-        } catch (IOException e) {
+        } catch (Exception e) {
+            if (dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                        DataFeedMetricNames.getErrorModuleCauseTags(
+                                ModuleTagNames.SINK, ErrorCauseTagNames.UPLOAD));
+            }
             log.error("Failed while reading bytes from source path with message %s", e.getMessage());
             throw new JobRuntimeException(e);
         }
@@ -107,15 +123,38 @@ public class AwsFileSink extends FileSink {
         log.info("Uploading from {} to S3 bucket {}/{}", path.toString()
                 , this.awsConf.getBucketName(), this.awsConf.getObjectKey());
         try (final InputStream inputStream = fileSystem.open(path)) {
-            final String objKey = String.format("%s_%0" + this.digitNum + "d", this.awsConf.getS3FilePrefix(), partNum);
-            final PutObjectRequest request = new PutObjectRequest(this.awsConf.getBucketName(),
+            String objKey = "";
+            if (this.conf.getDispersalLength().equals(DispersalLengthType.MULTIPLE_DAY)) {
+                objKey = String.format("%s/%s_%0" + this.digitNum + "d",
+                        String.join("/", this.awsConf.getObjectKey(),
+                                String.valueOf(date.getYear() + 1900),
+                                String.valueOf(date.getMonth() + 1),
+                                String.valueOf(date.getDate())),
+                        this.conf.getFileNamePrefix(), partNum);
+            } else {
+                objKey = String.format("%s_%0" + this.digitNum + "d",
+                        this.awsConf.getS3FilePrefix(), partNum);
+            }
+            log.info("s3 object key: {}", objKey);
+            final PutObjectRequest request = new PutObjectRequest(
+                    this.awsConf.getBucketName(),
                     objKey, inputStream, metadata);
             this.s3Client.putObject(request);
         } catch (AmazonServiceException e) {
+            if (dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                        DataFeedMetricNames.getErrorModuleCauseTags(
+                                ModuleTagNames.SINK, ErrorCauseTagNames.UPLOAD));
+            }
             log.error("Failed while putObject to bucket %s with message %s"
                     , this.awsConf.getBucketName(), e.getErrorMessage());
             throw new JobRuntimeException(e);
         } catch (IOException e) {
+            if (dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                        DataFeedMetricNames.getErrorModuleCauseTags(
+                                ModuleTagNames.SINK, ErrorCauseTagNames.UPLOAD));
+            }
             log.error("Failed while open source path with %s", e.getMessage());
             throw new JobRuntimeException(e);
         }
@@ -126,7 +165,7 @@ public class AwsFileSink extends FileSink {
      * If the {@link FileSinkConfiguration#dispersalType} is OVERWRITE,
      * it will overwrite existing files with prefix {@link AwsConfiguration #objectKey} in {@link AwsConfiguration #bucketName}
      * Then save converted and repartitioned data to temporary path {@link FileSinkConfiguration#fullPath}
-     * And finally upload each file in that path to aws s3 bucket with {@link AwsFileSink#uploadFileToS3(FileSystem, Path, int)}
+     * And finally upload each file in that path to aws s3 bucket with {@link AwsFileSink#uploadFileToS3(FileSystem, Path, int, Date)}
      *
      * @param data data to upload to aws s3
      */
@@ -141,12 +180,32 @@ public class AwsFileSink extends FileSink {
                 fs.delete(destPath, true);
             }
         } catch (IOException e) {
+            if (dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                        DataFeedMetricNames.getErrorModuleCauseTags(
+                                ModuleTagNames.SINK, ErrorCauseTagNames.FS_UTIL_DELETE));
+            }
             log.error("Job failure while deleting temporary path {} before s3 sink write"
                     , this.awsConf.getSourcePath());
             throw new JobRuntimeException(e);
         }
+
+        if (this.conf.getDispersalLength().equals(DispersalLengthType.MULTIPLE_DAY)) {
+            final Map<Date, JavaRDD<AvroPayload>> dateRepartitionedData = dateRepartition(data);
+            dateRepartitionedData.forEach((day, partition) -> {
+                    log.info("multiple_day, write for day: {}", day);
+                    super.write(partition);
+                    writeToS3(day);
+                });
+        } else {
+            super.write(data);
+            writeToS3(null);
+        }
+    }
+
+    private void writeToS3(final Date date) {
+
         //Write data to temporary path
-        super.write(data);
         final Path destPath = new Path(this.awsConf.getFileSystemPrefix());
         log.info("Start to load file system object for intermediate storage.");
         try {
@@ -202,7 +261,7 @@ public class AwsFileSink extends FileSink {
                     final Path path = s.getPath();
                     final String fileName = path.getName();
                     if (!fileName.equals(SUCCESS) && !fileName.endsWith(CRC)) {
-                        this.uploadFileToS3(fileSystem, path, partitionId);
+                        this.uploadFileToS3(fileSystem, path, partitionId, date);
                         partitionId += 1;
                     }
                 }
@@ -211,14 +270,61 @@ public class AwsFileSink extends FileSink {
             fileSystem.delete(temporaryOutput, true);
             log.info("Finished deleting temporary output path: {}", this.awsConf.getSourcePath());
         } catch (IOException e) {
+            if (dataFeedMetrics.isPresent()) {
+                this.dataFeedMetrics.get().createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1,
+                        DataFeedMetricNames.getErrorModuleCauseTags(
+                                ModuleTagNames.SINK, ErrorCauseTagNames.UPLOAD));
+            }
             log.error("Failed Job while writing "
-                    + "to s3 bucket %s with error message: %s", this.awsConf.getBucketName(), e.getMessage());
+                    + "to s3 bucket {} with error message: {}", this.awsConf.getBucketName(), e.getMessage());
             throw new JobRuntimeException(e);
         }
+    }
+
+    /**
+     * This API uses Heatpipe timestamp and split original RDD to multiple RDD
+     * based on the message dates
+     * @param data
+     * @return map of date to RDD
+     */
+    private Map<Date, JavaRDD<AvroPayload>>  dateRepartition(@NonNull final JavaRDD<AvroPayload> data) {
+
+        log.info("Date based data repartitoning ");
+        //collect all dates
+        Set<Date> dates = new HashSet<>();
+        data.collect().forEach(line -> {
+                final long timestamp = (long) line.getField("Hadoop_timestamp");
+                final Date msgDay = new Date(timestamp);
+                final Date day = new Date(msgDay.getYear(),  msgDay.getMonth(), msgDay.getDate());
+                dates.add(day);
+            });
+        log.info("number of partitions based on dates: {}", dates.size());
+        log.info("dates: {}", dates.toString());
+
+        // group messages based on grouped dates
+        Map<Date, JavaRDD<AvroPayload>> groupedMessages = new HashMap<>();
+        dates.forEach(day -> {
+                JavaRDD<AvroPayload> message = data.filter(msg -> {
+                        final long timestamp = (long) msg.getField("Hadoop_timestamp");
+                        final Date msgDay = new Date(timestamp);
+                        final boolean result = isSameDate(day, msgDay);
+                        log.debug("\t filtering day: {}, message day: {}, \t filter result: {}",
+                                day.toInstant(), msgDay.toString(), result);
+                        return result;
+                    });
+                groupedMessages.put(day, message);
+            });
+
+        return groupedMessages;
     }
 
     @VisibleForTesting
     protected AmazonS3 getS3Client() {
         return this.s3Client;
+    }
+
+    private static boolean isSameDate(@NotEmpty final Date dateA, @NotEmpty final Date dateB) {
+        final SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd");
+        return fmt.format(dateA).equals(fmt.format(dateB));
     }
 }

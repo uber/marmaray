@@ -19,6 +19,7 @@ package com.uber.marmaray.common.reporters;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.metrics.Metric;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Queue;
@@ -46,6 +47,12 @@ public final class Reporters {
         }
 
         this.reporters.forEach(r -> r.gauge(m));
+    }
+
+    public void report(@NonNull final Metric ... metrics) {
+        for (Metric m : metrics) {
+            report(m);
+        }
     }
 
     public void finish() {

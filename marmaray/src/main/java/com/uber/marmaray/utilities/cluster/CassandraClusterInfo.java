@@ -28,13 +28,16 @@ import lombok.Setter;
 public class CassandraClusterInfo {
 
     @Getter
-    private final Optional<String> sslStoragePort;
+    @Setter
+    private Optional<String> sslStoragePort;
 
     @Getter
-    private final Optional<String> rpcPort;
+    @Setter
+    private Optional<String> rpcPort;
 
     @Getter
-    private final Optional<String> storagePort;
+    @Setter
+    private Optional<String> storagePort;
 
     @Getter
     @Setter

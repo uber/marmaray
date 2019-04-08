@@ -25,15 +25,14 @@ import com.uber.marmaray.common.converters.data.CassandraSinkCQLDataConverter;
 import com.uber.marmaray.common.data.RDDWrapper;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.metrics.DataFeedMetricNames;
+import com.uber.marmaray.common.metrics.DataFeedMetrics;
+import com.uber.marmaray.common.metrics.ErrorCauseTagNames;
+import com.uber.marmaray.common.metrics.ModuleTagNames;
 import com.uber.marmaray.common.schema.cassandra.CassandraSinkSchemaManager;
-import com.uber.marmaray.utilities.StringTypes;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.api.java.JavaRDD;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * {@link CassandraClientSink} implements the {@link CassandraSink} interface for a Cassandra sink. The AvroPayload RDD
@@ -51,6 +50,12 @@ public class CassandraClientSink extends CassandraSink {
                                 @NonNull final CassandraSinkConfiguration conf) {
         super(schemaManager, conf);
         this.converter = converter;
+    }
+
+    @Override
+    public void setDataFeedMetrics(@NonNull final DataFeedMetrics dataFeedMetrics) {
+        super.setDataFeedMetrics(dataFeedMetrics);
+        this.converter.setDataFeedMetrics(dataFeedMetrics);
     }
 
     @Override
@@ -79,40 +84,39 @@ public class CassandraClientSink extends CassandraSink {
              * failure and thinking the dispersal job has succeeded when no data has actually been dispersed and
              * checkpoints have been persisted to indicate the partition was successfully dispersed.
              */
-            final String errMsg = String.join("No data was found to disperse.  As a safeguard, we are failing "
+            if (this.tableMetrics.isPresent()) {
+                this.tableMetrics.get()
+                        .createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR, 1, DataFeedMetricNames
+                                .getErrorModuleCauseTags(ModuleTagNames.SINK, ErrorCauseTagNames.NO_DATA));
+            }
+            final String errMsg = String.join(""
+                    , "No data was found to disperse.  As a safeguard, we are failing "
                     , "the job explicitly. Please check your data and ensure records are valid and "
                     , "partition and clustering keys are populated.  If your partition has empty data you will have to "
                     , "delete it to proceed.  Otherwise, please contact your support team for troubleshoooting");
             throw new JobRuntimeException(errMsg);
         }
 
-        // TODO: Figure out how to calculate the data size generated from CQL statements.
-        if (this.tableMetrics.isPresent()) {
-            final Map<String, String> tags = new HashMap<>();
-            tags.put(TABLE_NAME_TAG, this.conf.getKeyspace() + StringTypes.UNDERSCORE + this.conf.getTableName());
-            this.tableMetrics.get()
-                    .createLongMetric(DataFeedMetricNames.OUTPUT_ROWCOUNT, payloadWrapper.getCount(), tags);
-        }
-
-        final String clusterName = this.conf.getClusterName();
         final String keyspaceName = this.conf.getKeyspace();
 
-        JavaRDD<Statement> writtenRdd = payloadWrapper.getData().mapPartitions(iter -> {
-                final Cluster.Builder builder = Cluster.builder().withClusterName(clusterName);
-                if (this.conf.getNativePort().isPresent()) {
-                    builder.withPort(Integer.parseInt(this.conf.getNativePort().get()));
-                } else {
-                    builder.withPort(Integer.parseInt(CassandraSinkConfiguration.DEFAULT_OUTPUT_NATIVE_PORT));
-                }
-                this.conf.getInitialHosts().forEach(builder::addContactPoint);
+        final JavaRDD<Statement> writtenRdd = payloadWrapper.getData().mapPartitions(
+            iter -> {
+                final Cluster.Builder builder = this.getBuilder(this.conf.getHadoopConf());
 
                 try (final Cluster cluster = builder.build();
                      final Session session = cluster.connect(keyspaceName)) {
                     while (iter.hasNext()) {
-                        Statement statement = iter.next();
+                        final Statement statement = iter.next();
                         try {
                             session.execute(statement);
                         } catch (Exception e) {
+                            if (this.tableMetrics.isPresent()) {
+                                this.tableMetrics.get()
+                                        .createLongFailureMetric(DataFeedMetricNames.MARMARAY_JOB_ERROR,
+                                                1,
+                                                DataFeedMetricNames.getErrorModuleCauseTags(ModuleTagNames.SINK,
+                                                        ErrorCauseTagNames.EXEC_CASSANDRA_CMD));
+                            }
                             log.error("Exception: {}", e);
                             throw new JobRuntimeException(e);
                         }
