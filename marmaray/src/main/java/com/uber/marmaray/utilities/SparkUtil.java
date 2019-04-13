@@ -18,10 +18,19 @@ package com.uber.marmaray.utilities;
 
 import com.google.common.base.Optional;
 import com.google.common.collect.Sets;
+import com.uber.hoodie.WriteStatus;
+import com.uber.hoodie.common.HoodieRollbackStat;
+import com.uber.hoodie.common.model.HoodieRecordLocation;
+import com.uber.hoodie.common.model.HoodieWriteStat;
+import com.uber.marmaray.common.HoodieErrorPayload;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsAction;
+import org.apache.hadoop.hdfs.protocol.FsPermissionExtension;
 import org.apache.spark.SparkContext;
 import org.apache.spark.SparkEnv;
 import org.apache.spark.serializer.SerializerInstance;
@@ -29,13 +38,20 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.storage.RDDInfo;
+import org.apache.spark.util.AccumulatorMetadata;
 import scala.reflect.ClassManifestFactory;
 import scala.reflect.ClassTag;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * {@link SparkUtil} defines utility methods for working with Apache Spark
@@ -53,7 +69,7 @@ public final class SparkUtil {
     }
 
     public static void addClassesIfFound(@NonNull final List<Class> serializableClasses,
-        @NonNull final List<String> classList) {
+                                         @NonNull final List<String> classList) {
         for (final String className : classList) {
             try {
                 serializableClasses.add(Class.forName(className));
@@ -71,6 +87,7 @@ public final class SparkUtil {
 
     /**
      * KryoSerializer is the the default serializaer
+     *
      * @return SerializerInstance
      */
     public static SerializerInstance getSerializerInstance() {
@@ -81,7 +98,7 @@ public final class SparkUtil {
     }
 
     public static <T, K extends ClassTag<T>> T deserialize(final byte[] serializedRecord,
-        @NonNull final K classTag) {
+                                                           @NonNull final K classTag) {
         if (serializedRecord == null) {
             return null;
         }
@@ -124,4 +141,27 @@ public final class SparkUtil {
         return SparkSession.builder().getOrCreate();
     }
 
+    /**
+     * Get list of classes we need for serialization
+     *
+     * @return list of classes used for serialization
+     */
+    public static List<Class> getSerializationClasses() {
+        return new ArrayList<>(Arrays.asList(
+                HoodieErrorPayload.class,
+                AccumulatorMetadata.class,
+                TimeUnit.class,
+                HoodieRollbackStat.class,
+                FileStatus.class,
+                Path.class,
+                FsPermissionExtension.class,
+                FsAction.class,
+                HoodieWriteStat.class,
+                AtomicLong.class,
+                HashSet.class,
+                ConcurrentHashMap.class,
+                WriteStatus.class,
+                HoodieRecordLocation.class
+        ));
+    }
 }
