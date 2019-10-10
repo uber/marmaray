@@ -20,7 +20,6 @@ import com.uber.marmaray.common.metrics.ModuleTagNames;
 import com.uber.marmaray.common.metrics.TimerMetric;
 import com.uber.marmaray.common.reporters.ConsoleReporter;
 import com.uber.marmaray.common.reporters.Reporters;
-import com.uber.marmaray.common.schema.kafka.KafkaSchemaAvroServiceReader;
 import com.uber.marmaray.common.schema.kafka.KafkaSchemaJSONServiceReader;
 import com.uber.marmaray.common.sinks.hoodie.HoodieSink;
 import com.uber.marmaray.common.sources.ISource;
@@ -75,7 +74,6 @@ class CustomHoodieSinkDataConverter extends HoodieSinkDataConverter {
 }
 
 
-
 /**
  * Job to load data from kafka to hoodie
  */
@@ -99,20 +97,6 @@ public class KafkaToHoodieJob {
      * @throws IOException
      */
     private void run(final String[] args) throws IOException {
-//        final String schema = "{\"namespace\": \"example.avro\", \"type\": \"record\", \"name\": \"Record\", \"fields\": [{\"name\": \"Region\", \"type\": \"string\"}, {\"name\": \"Country\", \"type\": \"string\"}] }";
-//        final Schema schemaObj = new org.apache.avro.Schema.Parser().parse(schema);
-//        final GenericData.Record record = new GenericData.Record(schemaObj);
-//        record.put("Region", "Sub-Saharan Africa");
-//        record.put("Country", "Chad");
-//
-//        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-//        final GenericDatumWriter datumWriter = new GenericDatumWriter<GenericRecord>(schemaObj);
-//        final BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(outputStream, null);
-//
-//        datumWriter.write(record, encoder);
-//        encoder.flush();
-//
-//        final String recordString = new String(outputStream.toByteArray());
 
         final Instant jobStartTime = Instant.now();
 
@@ -122,7 +106,7 @@ public class KafkaToHoodieJob {
         reporters.addReporter(new ConsoleReporter());
 
         final Map<String, String> metricTags = Collections.emptyMap();
-        final DataFeedMetrics dataFeedMetrics = new DataFeedMetrics("kafka to hoodie ingestion", metricTags);
+        final DataFeedMetrics dataFeedMetrics = new DataFeedMetrics("KafkaToHoodieJob", metricTags);
 
         log.info("Initializing configurations for job");
         final TimerMetric confInitMetric = new TimerMetric(DataFeedMetricNames.INIT_CONFIG_LATENCY_MS,
@@ -149,16 +133,7 @@ public class KafkaToHoodieJob {
         final TimerMetric convertSchemaLatencyMs =
                 new TimerMetric(DataFeedMetricNames.CONVERT_SCHEMA_LATENCY_MS, metricTags);
 
-//        final StructType inputSchema = DataTypes.createStructType(new StructField[]{
-//                DataTypes.createStructField("Region", DataTypes.StringType, true),
-//                DataTypes.createStructField("Country", DataTypes.StringType, true)
-//        });
-//
-//        final DataFrameSchemaConverter schemaConverter = new DataFrameSchemaConverter();
-//        final Schema outputSchema = schemaConverter.convertToCommonSchema(inputSchema);
-
-        final String schema = "{\"namespace\": \"example.avro\", \"type\": \"record\", \"name\": \"Record\", \"fields\": [{\"name\": \"Region\", \"type\": \"string\"}, {\"name\": \"Country\", \"type\": \"string\"}] }";
-        final Schema outputSchema = new org.apache.avro.Schema.Parser().parse(schema);
+        final Schema outputSchema = new Schema.Parser().parse(hoodieConf.getHoodieWriteConfig().getSchema());
         convertSchemaLatencyMs.stop();
         reporters.report(convertSchemaLatencyMs);
 
