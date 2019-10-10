@@ -27,6 +27,7 @@ import com.uber.hoodie.exception.HoodieInsertException;
 import com.uber.hoodie.exception.HoodieUpsertException;
 import com.uber.hoodie.table.UserDefinedBulkInsertPartitioner;
 import com.uber.marmaray.common.AvroPayload;
+import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.converters.data.HoodieSinkDataConverter;
 import com.uber.marmaray.common.data.ErrorData;
@@ -77,6 +78,7 @@ public class HoodieSink implements ISink, scala.Serializable {
 
     private static final String TABLE_NAME = "table_name";
     private final HoodieConfiguration hoodieConf;
+    private final HadoopConfiguration hadoopConf;
     // It is used for generating HoodieKey from AvroPayload.
     private final HoodieSinkDataConverter hoodieSinkDataConverter;
     private final transient JavaSparkContext jsc;
@@ -114,20 +116,23 @@ public class HoodieSink implements ISink, scala.Serializable {
     private HoodieSinkOperations hoodieSinkOperations = new HoodieSinkOperations();
 
     public HoodieSink(@NonNull final HoodieConfiguration hoodieConf,
+                      @NonNull final HadoopConfiguration hadoopConf,
                       @NonNull final HoodieSinkDataConverter hoodieSinkDataConverter,
                       @NonNull final JavaSparkContext jsc,
                       @NonNull final IMetadataManager metadataMgr,
                       @NonNull final Optional<String> defaultDataPartitioner) {
-      this(hoodieConf, hoodieSinkDataConverter, jsc, metadataMgr, false, defaultDataPartitioner);
+      this(hoodieConf, hadoopConf, hoodieSinkDataConverter, jsc, metadataMgr, false, defaultDataPartitioner);
     }
 
     public HoodieSink(@NonNull final HoodieConfiguration hoodieConf,
+                      @NonNull final HadoopConfiguration hadoopConf,
                       @NonNull final HoodieSinkDataConverter hoodieSinkDataConverter,
                       @NonNull final JavaSparkContext jsc,
                       @NonNull final IMetadataManager metadataMgr,
                       final boolean shouldSaveChangesInFuture,
                       @NonNull final Optional<String> defaultDataPartitioner) {
         this.hoodieConf = hoodieConf;
+        this.hadoopConf = hadoopConf;
         this.hoodieSinkDataConverter = hoodieSinkDataConverter;
         this.jsc = jsc;
         this.op = hoodieConf.getHoodieSinkOp();
@@ -189,7 +194,7 @@ public class HoodieSink implements ISink, scala.Serializable {
     protected void initDataset() {
         try {
             HoodieUtil.initHoodieDataset(FSUtils.getFs(this.hoodieConf.getConf(),
-                    Optional.of(this.hoodieConf.getBasePath())), this.hoodieConf);
+                    Optional.of(this.hoodieConf.getBasePath())), this.hadoopConf, this.hoodieConf);
         } catch (IOException e) {
             log.error("Error initializing hoodie dataset.", e);
             throw new JobRuntimeException("Could not initialize hoodie dataset", e);
@@ -274,7 +279,7 @@ public class HoodieSink implements ISink, scala.Serializable {
         updateSinkStat(writesStatuses);
         logWriteMetrics(writesStatuses);
 
-        java.util.Optional<HashMap<String, String>> hoodieExtraMetadata = java.util.Optional.empty();
+        java.util.Optional<Map<String, String>> hoodieExtraMetadata = java.util.Optional.empty();
         if (this.metadataMgr instanceof HoodieBasedMetadataManager) {
             // Retrieve metadata from metadata manager and update metadata manager to avoid it creating extra
             // hoodie commit.
@@ -486,7 +491,7 @@ public class HoodieSink implements ISink, scala.Serializable {
         }
 
         public boolean commit(@NotEmpty final String commitTime, @NonNull final JavaRDD<WriteStatus> writeStatuses,
-                              final java.util.Optional<HashMap<String, String>> extraMetadata) {
+                              final java.util.Optional<Map<String, String>> extraMetadata) {
             return this.hoodieWriteClient.commit(commitTime, writeStatuses, extraMetadata);
         }
 

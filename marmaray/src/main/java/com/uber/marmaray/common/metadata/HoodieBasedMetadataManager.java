@@ -61,6 +61,7 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
 
     @Getter
     private final HoodieConfiguration hoodieConf;
+    private final HadoopConfiguration hadoopConf;
     private final AtomicBoolean saveChanges;
     private transient Optional<JavaSparkContext> jsc = Optional.absent();
     private Optional<Map<String, String>> metadataMap = Optional.absent();
@@ -72,8 +73,11 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
      * @param hoodieConf        {@link HoodieConfiguration}
      */
     public HoodieBasedMetadataManager(@NonNull final HoodieConfiguration hoodieConf,
-        @NonNull final AtomicBoolean shouldSaveChanges, @NonNull final JavaSparkContext jsc) throws IOException {
+                                      @NonNull final HadoopConfiguration hadoopConf,
+                                      @NonNull final AtomicBoolean shouldSaveChanges,
+                                      @NonNull final JavaSparkContext jsc) throws IOException {
         this.hoodieConf = hoodieConf;
+        this.hadoopConf = hadoopConf;
         this.saveChanges = shouldSaveChanges;
         this.jsc = Optional.of(jsc);
     }
@@ -90,7 +94,7 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
 
     private Map<String, String> getMetadataMap() {
         if (!this.metadataMap.isPresent()) {
-            this.metadataMap = Optional.of(readMetadataInfo(this.hoodieConf));
+            this.metadataMap = Optional.of(readMetadataInfo(this.hoodieConf, this.hadoopConf));
         }
         return this.metadataMap.get();
     }
@@ -184,10 +188,10 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
      * {@link #HOODIE_METADATA_KEY} key.
      */
     private static Map<String, String> readMetadataInfo(
-            @NonNull final HoodieConfiguration hoodieConf) {
+            @NonNull final HoodieConfiguration hoodieConf, @NonNull final HadoopConfiguration hadoopConf) {
         try {
             final FileSystem fs = FSUtils.getFs(hoodieConf.getConf(), Optional.of(hoodieConf.getBasePath()));
-            HoodieUtil.initHoodieDataset(fs, hoodieConf);
+            HoodieUtil.initHoodieDataset(fs, hadoopConf, hoodieConf);
             final HoodieTableMetaClient hoodieTableMetaClient =
                 new HoodieTableMetaClient(new HadoopConfiguration(hoodieConf.getConf()).getHadoopConf(),
                     hoodieConf.getBasePath(), true);
@@ -197,7 +201,8 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
             if (lastInstant.isPresent()) {
                 log.info("using hoodie instant for reading checkpoint info :{}", lastInstant.get().getTimestamp());
                 final HoodieCommitMetadata commitMetadata =
-                    HoodieCommitMetadata.fromBytes(hoodieActiveTimeline.getInstantDetails(lastInstant.get()).get());
+                    HoodieCommitMetadata.fromBytes(hoodieActiveTimeline.getInstantDetails(lastInstant.get()).get(),
+                            HoodieCommitMetadata.class);
                 final String serCommitInfo = commitMetadata.getMetadata(HOODIE_METADATA_KEY);
                 if (!Strings.isNullOrEmpty(serCommitInfo)) {
                     return MapUtil.deserializeMap(serCommitInfo);

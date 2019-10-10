@@ -434,6 +434,7 @@ public class HoodieConfiguration implements Serializable {
                     ).build());
 
             // Hoodie index config
+
             builder.withIndexConfig(new HoodieIndexConfiguration(getConf(), getTableKey()).configureHoodieIndex());
 
             // Hoodie metrics config
@@ -462,12 +463,6 @@ public class HoodieConfiguration implements Serializable {
                 log.error(errorStr);
                 throw new JobRuntimeException(errorStr, e);
             }
-
-            // enable tmp directory writes for hoodie.
-            builder.withUseTempFolderCopyOnWriteForCreate(true);
-
-            // enabled the renaming for copy detection on merge
-            builder.withUseTempFolderCopyOnWriteForMerge(true);
 
             return builder.build();
         } catch (IllegalArgumentException e) {

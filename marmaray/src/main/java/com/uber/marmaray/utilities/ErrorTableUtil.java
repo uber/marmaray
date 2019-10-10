@@ -22,6 +22,7 @@ import com.uber.hoodie.common.model.HoodieRecordPayload;
 import com.uber.marmaray.common.HoodieErrorPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.configuration.ErrorTableConfiguration;
+import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.converters.data.DummyHoodieSinkDataConverter;
 import com.uber.marmaray.common.data.ErrorData;
@@ -98,6 +99,7 @@ public final class ErrorTableUtil {
 
         JavaSparkContext jsc = JavaSparkContext.fromSparkContext(sc);
         final ErrorTableConfiguration errorTableConf = new ErrorTableConfiguration(conf);
+        final HadoopConfiguration hadoopConf = new HadoopConfiguration(conf);
         if (!errorTableConf.isEnabled()) {
             return;
         }
@@ -118,9 +120,9 @@ public final class ErrorTableUtil {
 
         try {
             final HoodieBasedMetadataManager metadataManager =
-                new HoodieBasedMetadataManager(hoodieConf, shouldSaveChanges, jsc);
-            final HoodieSink hoodieSink = new HoodieErrorSink(hoodieConf, new DummyHoodieSinkDataConverter(), jsc,
-                    metadataManager,false);
+                new HoodieBasedMetadataManager(hoodieConf, hadoopConf, shouldSaveChanges, jsc);
+            final HoodieSink hoodieSink = new HoodieErrorSink(hoodieConf, hadoopConf, new DummyHoodieSinkDataConverter(),
+                    jsc, metadataManager,false);
 
             JavaRDD<GenericRecord> errorRecords = errorData.getData().map(error -> generateGenericErrorRecord(
                 errorExtractor, errorTableSchema, error, applicationId));
@@ -159,7 +161,8 @@ public final class ErrorTableUtil {
                                                    .withTableName(errorTableName)
                                                    .enableMetrics(false)
                                                    .build();
-        HoodieUtil.initHoodieDataset(FSUtils.getFs(conf, Optional.of(hoodieConf.getBasePath())), hoodieConf);
+        final HadoopConfiguration hadopConf = new HadoopConfiguration(conf);
+        HoodieUtil.initHoodieDataset(FSUtils.getFs(conf, Optional.of(hoodieConf.getBasePath())), hadopConf, hoodieConf);
     }
 
     public static void addErrorSchemaConfiguration(

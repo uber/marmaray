@@ -28,6 +28,10 @@ public class HoodieWriteStatus extends WriteStatus {
 
     private long totalRecords;
 
+    public HoodieWriteStatus(Boolean trackSuccessRecords, Double failureFraction) {
+        super(trackSuccessRecords, failureFraction);
+    }
+
     /**
      * Overriding {@link #markSuccess(HoodieRecord, Optional)} to avoid caching
      * {@link com.uber.hoodie.common.model.HoodieKey} for successfully written hoodie records.

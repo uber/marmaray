@@ -22,6 +22,7 @@ import com.uber.hoodie.common.table.timeline.HoodieActiveTimeline;
 import com.uber.hoodie.config.HoodieWriteConfig;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
+import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.converters.data.HoodieSinkDataConverter;
 import com.uber.marmaray.common.converters.data.TSBasedHoodieSinkDataConverter;
@@ -86,19 +87,23 @@ class MockHoodieSink extends HoodieSink {
     private HoodieWriteClientWrapper mockWriteClient;
 
     public MockHoodieSink(@NonNull final HoodieConfiguration hoodieConf,
-        @NonNull final HoodieSinkDataConverter hoodieKeyGenerator, @NonNull final JavaSparkContext jsc) {
-        super(hoodieConf, hoodieKeyGenerator, jsc, new MemoryMetadataManager(), Optional.absent());
+                          @NonNull final HadoopConfiguration hadoopConf,
+                          @NonNull final HoodieSinkDataConverter hoodieKeyGenerator,
+                          @NonNull final JavaSparkContext jsc) {
+        super(hoodieConf, hadoopConf, hoodieKeyGenerator, jsc, new MemoryMetadataManager(), Optional.absent());
     }
 
     public MockHoodieSink(@NonNull final HoodieConfiguration hoodieConf,
-        @NonNull final HoodieSinkDataConverter hoodieKeyGenerator, @NonNull final JavaSparkContext jsc,
-        @NonNull final IMetadataManager metadataMgr) {
-        super(hoodieConf, hoodieKeyGenerator, jsc, metadataMgr, Optional.absent());
+                          @NonNull final HadoopConfiguration hadoopConf,
+                          @NonNull final HoodieSinkDataConverter hoodieKeyGenerator,
+                          @NonNull final JavaSparkContext jsc,
+                          @NonNull final IMetadataManager metadataMgr) {
+        super(hoodieConf, hadoopConf, hoodieKeyGenerator, jsc, metadataMgr, Optional.absent());
     }
 
     @Override
     protected HoodieWriteClientWrapper getHoodieWriteClient(
-        @NonNull final HoodieWriteConfig hoodieWriteConfig) {
+            @NonNull final HoodieWriteConfig hoodieWriteConfig) {
         this.mockWriteClient = spy(super.getHoodieWriteClient(hoodieWriteConfig));
         return this.mockWriteClient;
     }
@@ -119,11 +124,12 @@ public class TestHoodieSink extends AbstractSparkTest {
         final String tableName = "test-table";
         final String schemaStr = getSchema("TS", "RECORD_KEY", 4, 8).toString();
         final HoodieConfiguration hoodieConf =
-            HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
-                .withBasePath(basePath).withSchema(schemaStr).withSinkOp("NO_OP").enableMetrics(false).build();
+                HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
+                        .withBasePath(basePath).withSchema(schemaStr).withSinkOp("NO_OP").enableMetrics(false).build();
+        final HadoopConfiguration hadoopConf = new HadoopConfiguration(new Configuration());
         final HoodieSink mockSink =
-            spy(new HoodieSink(hoodieConf, mock(HoodieSinkDataConverter.class), mock(JavaSparkContext.class),
-                    new NoOpMetadataManager(), Optional.absent()));
+                spy(new HoodieSink(hoodieConf, hadoopConf, mock(HoodieSinkDataConverter.class), mock(JavaSparkContext.class),
+                        new NoOpMetadataManager(), Optional.absent()));
         when(mockSink.calculateNewBulkInsertParallelism(anyLong())).thenReturn(18);
         Assert.assertTrue(mockSink.updateInsertParallelism(1000));
         Assert.assertEquals(18, hoodieConf.getInsertParallelism());
@@ -136,11 +142,12 @@ public class TestHoodieSink extends AbstractSparkTest {
         final String tableName = "test-table";
         final String schemaStr = getSchema("TS", "RECORD_KEY", 4, 8).toString();
         final HoodieConfiguration hoodieConf =
-            HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
-                .withBasePath(basePath).withSchema(schemaStr).withSinkOp("NO_OP").enableMetrics(false).build();
+                HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
+                        .withBasePath(basePath).withSchema(schemaStr).withSinkOp("NO_OP").enableMetrics(false).build();
+        final HadoopConfiguration hadoopConf = new HadoopConfiguration(new Configuration());
         final HoodieSink mockSink =
-            spy(new HoodieSink(hoodieConf, mock(HoodieSinkDataConverter.class), mock(JavaSparkContext.class),
-                    new NoOpMetadataManager(), Optional.absent()));
+                spy(new HoodieSink(hoodieConf, hadoopConf, mock(HoodieSinkDataConverter.class), mock(JavaSparkContext.class),
+                        new NoOpMetadataManager(), Optional.absent()));
         when(mockSink.calculateNewBulkInsertParallelism(anyLong())).thenReturn(18);
         Assert.assertTrue(mockSink.updateBulkInsertParallelism(1000));
         Assert.assertEquals(18, hoodieConf.getBulkInsertParallelism());
@@ -157,11 +164,12 @@ public class TestHoodieSink extends AbstractSparkTest {
                         .withBasePath(basePath).withSchema(schemaStr).withRecordKey(RECORD_KEY)
                         .withPartitionPath(TS_KEY).withSinkOp("INSERT").enableMetrics(false).build();
         final HoodieSinkDataConverter hoodieKeyGenerator =
-            new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
+                new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
 
-        final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hoodieKeyGenerator, jsc.get());
+        final HadoopConfiguration hadoopConf = new HadoopConfiguration(new Configuration());
+        final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hadoopConf, hoodieKeyGenerator, jsc.get());
         final JavaRDD<AvroPayload> inputRDD =
-            this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
+                this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
         final Map<String, String> emptyTags = new HashMap<>();
         final DataFeedMetrics dfm = new DataFeedMetrics(JOB_NAME, emptyTags);
         hoodieSink.setDataFeedMetrics(dfm);
@@ -171,7 +179,7 @@ public class TestHoodieSink extends AbstractSparkTest {
 
         // It should generate exactly one commit file.
         Assert.assertEquals(1, getCommitFiles(basePath, FSUtils.getFs(new Configuration(),
-            Optional.of(basePath))).size());
+                Optional.of(basePath))).size());
         /*
             Expected function calls.
             1) startCommit (once).
@@ -183,15 +191,15 @@ public class TestHoodieSink extends AbstractSparkTest {
          */
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1)).startCommit();
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(0))
-            .upsert(Matchers.any(JavaRDD.class), Matchers.anyString());
+                .upsert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
-            .insert(Matchers.any(JavaRDD.class), Matchers.anyString());
+                .insert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
-            .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
-                Matchers.same(java.util.Optional.empty()));
+                .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
+                        Matchers.same(java.util.Optional.empty()));
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1)).close();
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(0))
-            .bulkInsert(Matchers.any(JavaRDD.class), Matchers.anyString());
+                .bulkInsert(Matchers.any(JavaRDD.class), Matchers.anyString());
     }
 
     @Test
@@ -206,9 +214,10 @@ public class TestHoodieSink extends AbstractSparkTest {
         final HoodieSinkDataConverter hoodieKeyGenerator =
                 new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
 
-        final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hoodieKeyGenerator, jsc.get());
+        final HadoopConfiguration hadoopConf = new HadoopConfiguration(new Configuration());
+        final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hadoopConf, hoodieKeyGenerator, jsc.get());
         final JavaRDD<AvroPayload> inputRDD =
-            this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
+                this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
         final Map<String, String> emptyTags = new HashMap<>();
         final DataFeedMetrics dfm = new DataFeedMetrics(JOB_NAME, emptyTags);
         hoodieSink.setDataFeedMetrics(dfm);
@@ -217,7 +226,7 @@ public class TestHoodieSink extends AbstractSparkTest {
         final HoodieWriteClientWrapper hoodieWriteClientWrapper = hoodieSink.getMockWriteClient();
         // It should generate exactly one commit file.
         Assert.assertEquals(1, getCommitFiles(basePath, FSUtils.getFs(new Configuration(),
-            Optional.of(basePath))).size());
+                Optional.of(basePath))).size());
         /*
             Expected function calls.
             1) startCommit (once).
@@ -230,12 +239,12 @@ public class TestHoodieSink extends AbstractSparkTest {
 
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1)).startCommit();
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
-            .upsert(Matchers.any(JavaRDD.class), Matchers.anyString());
+                .upsert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(0))
-            .bulkInsert(Matchers.any(JavaRDD.class), Matchers.anyString());
+                .bulkInsert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
-            .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
-                Matchers.same(java.util.Optional.empty()));
+                .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
+                        Matchers.same(java.util.Optional.empty()));
     }
 
     @Test
@@ -249,13 +258,15 @@ public class TestHoodieSink extends AbstractSparkTest {
                         .withPartitionPath(TS_KEY).withSinkOp("INSERT").enableMetrics(false).build();
         final HoodieSinkDataConverter hoodieKeyGenerator =
                 new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
+
+        final HadoopConfiguration hadoopConf = new HadoopConfiguration(new Configuration());
         final HoodieBasedMetadataManager hoodieBasedMetadataManager = new HoodieBasedMetadataManager(hoodieConf,
-            new AtomicBoolean(true), this.jsc.get());
+                hadoopConf, new AtomicBoolean(true), this.jsc.get());
         hoodieBasedMetadataManager.set("randomKey", new StringValue("randomValue"));
-        final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hoodieKeyGenerator, jsc.get(),
-            hoodieBasedMetadataManager);
+        final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hadoopConf, hoodieKeyGenerator, jsc.get(),
+                hoodieBasedMetadataManager);
         final JavaRDD<AvroPayload> inputRDD =
-            this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
+                this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
         final Map<String, String> emptyTags = new HashMap<>();
         final DataFeedMetrics dfm = new DataFeedMetrics(JOB_NAME, emptyTags);
         hoodieSink.setDataFeedMetrics(dfm);
@@ -265,7 +276,7 @@ public class TestHoodieSink extends AbstractSparkTest {
 
         // It should generate exactly one commit file.
         Assert.assertEquals(1, getCommitFiles(basePath, FSUtils.getFs(new Configuration(),
-            Optional.of(basePath))).size());
+                Optional.of(basePath))).size());
         /*
             Expected function calls.
             1) startCommit (once).
@@ -277,12 +288,12 @@ public class TestHoodieSink extends AbstractSparkTest {
          */
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1)).startCommit();
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(0))
-            .upsert(Matchers.any(JavaRDD.class), Matchers.anyString());
+                .upsert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
-            .insert(Matchers.any(JavaRDD.class), Matchers.anyString());
+                .insert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
-            .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
-                Matchers.eq(java.util.Optional.of(hoodieBasedMetadataManager.getMetadataInfo())));
+                .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
+                        Matchers.eq(java.util.Optional.of(hoodieBasedMetadataManager.getMetadataInfo())));
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1)).close();
         Assert.assertFalse(hoodieBasedMetadataManager.shouldSaveChanges().get());
     }
@@ -298,14 +309,15 @@ public class TestHoodieSink extends AbstractSparkTest {
                         .withPartitionPath(TS_KEY).withSinkOp("UPSERT").enableMetrics(false).build();
         final HoodieSinkDataConverter hoodieKeyGenerator =
                 new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
+        final HadoopConfiguration hadoopConf = new HadoopConfiguration(new Configuration());
         final HoodieBasedMetadataManager hoodieBasedMetadataManager = new HoodieBasedMetadataManager(hoodieConf,
-            new AtomicBoolean(true), this.jsc.get());
+                hadoopConf, new AtomicBoolean(true), this.jsc.get());
         hoodieBasedMetadataManager.set("randomKey", new StringValue("randomValue"));
-        final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hoodieKeyGenerator, jsc.get(),
-            hoodieBasedMetadataManager);
+        final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hadoopConf, hoodieKeyGenerator, jsc.get(),
+                hoodieBasedMetadataManager);
 
         final JavaRDD<AvroPayload> inputRDD =
-            this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
+                this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
         final Map<String, String> emptyTags = new HashMap<>();
         final DataFeedMetrics dfm = new DataFeedMetrics(JOB_NAME, emptyTags);
         hoodieSink.setDataFeedMetrics(dfm);
@@ -314,7 +326,7 @@ public class TestHoodieSink extends AbstractSparkTest {
         final HoodieWriteClientWrapper hoodieWriteClientWrapper = hoodieSink.getMockWriteClient();
         // It should generate exactly one commit file.
         Assert.assertEquals(1, getCommitFiles(basePath, FSUtils.getFs(new Configuration(),
-            Optional.of(basePath))).size());
+                Optional.of(basePath))).size());
         /*
             Expected function calls.
             1) startCommit (once).
@@ -327,12 +339,12 @@ public class TestHoodieSink extends AbstractSparkTest {
 
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1)).startCommit();
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
-            .upsert(Matchers.any(JavaRDD.class), Matchers.anyString());
+                .upsert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(0))
-            .bulkInsert(Matchers.any(JavaRDD.class), Matchers.anyString());
+                .bulkInsert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
-            .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
-                Matchers.eq(java.util.Optional.of(hoodieBasedMetadataManager.getMetadataInfo())));
+                .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
+                        Matchers.eq(java.util.Optional.of(hoodieBasedMetadataManager.getMetadataInfo())));
         Assert.assertFalse(hoodieBasedMetadataManager.shouldSaveChanges().get());
     }
 
@@ -349,9 +361,10 @@ public class TestHoodieSink extends AbstractSparkTest {
         final HoodieSinkDataConverter hoodieKeyGenerator =
                 new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
         final JavaRDD<AvroPayload> inputRDD =
-            this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
+                this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
 
-        final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hoodieKeyGenerator, jsc.get());
+        final HadoopConfiguration hadoopConf = new HadoopConfiguration(new Configuration());
+        final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hadoopConf, hoodieKeyGenerator, jsc.get());
         final Map<String, String> emptyTags = new HashMap<>();
         final DataFeedMetrics dfm = new DataFeedMetrics(JOB_NAME, emptyTags);
         hoodieSink.setDataFeedMetrics(dfm);
@@ -361,7 +374,7 @@ public class TestHoodieSink extends AbstractSparkTest {
 
         // It should generate exactly one commit file.
         Assert.assertEquals(1, getCommitFiles(basePath, FSUtils.getFs(new Configuration(),
-            Optional.of(basePath))).size());
+                Optional.of(basePath))).size());
         /*
             Expected function calls.
             1) startCommit (once).
@@ -373,24 +386,24 @@ public class TestHoodieSink extends AbstractSparkTest {
          */
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1)).startCommit();
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(0))
-            .upsert(Matchers.any(JavaRDD.class), Matchers.anyString());
+                .upsert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
-            .insert(Matchers.any(JavaRDD.class), Matchers.anyString());
+                .insert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
-            .filterExists(Matchers.any(JavaRDD.class));
+                .filterExists(Matchers.any(JavaRDD.class));
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
-            .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
-                Matchers.same(java.util.Optional.empty()));
+                .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
+                        Matchers.same(java.util.Optional.empty()));
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1)).close();
 
         // If we try to re-insert then it should find all the records as a a part filterExists test and should not
         // call bulkInsert.
-        final MockHoodieSink hoodieSink2 = new MockHoodieSink(hoodieConf, hoodieKeyGenerator, jsc.get());
+        final MockHoodieSink hoodieSink2 = new MockHoodieSink(hoodieConf, hadoopConf, hoodieKeyGenerator, jsc.get());
         hoodieSink.write(inputRDD);
         final HoodieWriteClientWrapper hoodieWriteClientWrapper2 = hoodieSink.getMockWriteClient();
 
         Assert.assertEquals(2, getCommitFiles(basePath, FSUtils.getFs(new Configuration(),
-            Optional.of(basePath))).size());
+                Optional.of(basePath))).size());
         final ArgumentCaptor<JavaRDD> rddCaputure = ArgumentCaptor.forClass(JavaRDD.class);
         verify(hoodieWriteClientWrapper2).insert(rddCaputure.capture(), Matchers.any());
         // All records should get filtered out.
@@ -411,7 +424,8 @@ public class TestHoodieSink extends AbstractSparkTest {
         final HoodieSinkDataConverter hoodieKeyGenerator =
                 new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
 
-        final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hoodieKeyGenerator, jsc.get());
+        final HadoopConfiguration hadoopConf = new HadoopConfiguration(new Configuration());
+        final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hadoopConf, hoodieKeyGenerator, jsc.get());
         final Map<String, String> emptyTags = new HashMap<>();
         final DataFeedMetrics dfm = new DataFeedMetrics(JOB_NAME, emptyTags);
         hoodieSink.setDataFeedMetrics(dfm);
@@ -425,21 +439,21 @@ public class TestHoodieSink extends AbstractSparkTest {
 
         final Set<Metric> ms = dfm.getMetricSet();
         final Map<String, Object> metricMap = new HashMap<>();
-        ms.forEach( metric -> {
+        ms.forEach(metric -> {
             final String key = metric.getMetricName();
             metricMap.put(key, metric.getMetricValue());
         });
 
         final Map<String, Long> expected = ArrayUtils.<String, Long>toMap(
-                new Object[][] {
+                new Object[][]{
                         {"output_rowcount", successRecordCount.longValue()},
                         {"error_rowcount", failedRecordCount.longValue()},
-                    {"total_file_count", (long)metricMap.get("total_file_count")},
-                    {"total_write_size", (long)metricMap.get("total_write_size")}
+                        {"total_file_count", (long) metricMap.get("total_file_count")},
+                        {"total_write_size", (long) metricMap.get("total_write_size")}
                 });
 
         Assert.assertEquals(expected.size(), ms.size());
-        ms.forEach( metric -> {
+        ms.forEach(metric -> {
             final String key = metric.getMetricName();
             Assert.assertEquals("failure for metric " + key, expected.get(key), metric.getMetricValue());
         });
@@ -459,9 +473,10 @@ public class TestHoodieSink extends AbstractSparkTest {
                 new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
 
         final JavaRDD<AvroPayload> inputRDD =
-            this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
+                this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
 
-        final MockHoodieSink hoodieSink1 = new MockHoodieSink(hoodieConf, hoodieKeyGenerator, jsc.get());
+        final HadoopConfiguration hadoopConf = new HadoopConfiguration(new Configuration());
+        final MockHoodieSink hoodieSink1 = new MockHoodieSink(hoodieConf, hadoopConf, hoodieKeyGenerator, jsc.get());
         final Map<String, String> emptyTags = new HashMap<>();
         final DataFeedMetrics dfm = new DataFeedMetrics(JOB_NAME, emptyTags);
         hoodieSink1.setDataFeedMetrics(dfm);
@@ -470,14 +485,14 @@ public class TestHoodieSink extends AbstractSparkTest {
         Mockito.verify(hoodieWriteClientWrapper1, Mockito.times(1)).startCommit();
 
         final List<String> commitFilesAfterFirstCommit = getCommitFiles(basePath, FSUtils.getFs(new Configuration(),
-            Optional.of(basePath)));
+                Optional.of(basePath)));
         Assert.assertEquals(1, commitFilesAfterFirstCommit.size());
 
         final String customCommit =
-            HoodieActiveTimeline.COMMIT_FORMATTER.format(
-                new Date(new Date().getTime() - TimeUnit.DAYS.toMillis(365)));
+                HoodieActiveTimeline.COMMIT_FORMATTER.format(
+                        new Date(new Date().getTime() - TimeUnit.DAYS.toMillis(365)));
 
-        final MockHoodieSink hoodieSink2 = new MockHoodieSink(hoodieConf, hoodieKeyGenerator, jsc.get());
+        final MockHoodieSink hoodieSink2 = new MockHoodieSink(hoodieConf, hadoopConf, hoodieKeyGenerator, jsc.get());
         hoodieSink2.setDataFeedMetrics(dfm);
         hoodieSink2.setCommitTime(com.google.common.base.Optional.of(customCommit));
 
@@ -486,7 +501,7 @@ public class TestHoodieSink extends AbstractSparkTest {
         Mockito.verify(hoodieWriteClientWrapper2, Mockito.times(0)).startCommit();
 
         final List<String> commitFilesAfterSecondCommit = getCommitFiles(basePath, FSUtils.getFs(new Configuration(),
-            Optional.of(basePath)));
+                Optional.of(basePath)));
         Assert.assertEquals(2, commitFilesAfterSecondCommit.size());
 
         final String oldCommitTime = commitFilesAfterFirstCommit.get(0);
