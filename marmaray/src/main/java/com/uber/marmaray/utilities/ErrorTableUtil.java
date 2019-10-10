@@ -16,9 +16,9 @@
  */
 package com.uber.marmaray.utilities;
 
-import com.uber.hoodie.common.model.HoodieKey;
-import com.uber.hoodie.common.model.HoodieRecord;
-import com.uber.hoodie.common.model.HoodieRecordPayload;
+import org.apache.hudi.common.model.HoodieKey;
+import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieRecordPayload;
 import com.uber.marmaray.common.HoodieErrorPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.configuration.ErrorTableConfiguration;

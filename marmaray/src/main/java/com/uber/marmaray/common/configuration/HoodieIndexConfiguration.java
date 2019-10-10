@@ -18,11 +18,11 @@
 package com.uber.marmaray.common.configuration;
 
 import com.google.common.base.Preconditions;
-import com.uber.hoodie.config.DefaultHoodieConfig;
-import com.uber.hoodie.config.HoodieHBaseIndexConfig;
-import com.uber.hoodie.config.HoodieIndexConfig;
-import com.uber.hoodie.index.HoodieIndex;
-import com.uber.hoodie.index.HoodieIndex.IndexType;
+import org.apache.hudi.config.DefaultHoodieConfig;
+import org.apache.hudi.config.HoodieHBaseIndexConfig;
+import org.apache.hudi.config.HoodieIndexConfig;
+import org.apache.hudi.index.HoodieIndex;
+import org.apache.hudi.index.HoodieIndex.IndexType;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.utilities.StringTypes;
 import lombok.Getter;

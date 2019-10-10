@@ -17,10 +17,10 @@
 package com.uber.marmaray.utilities;
 
 import com.google.common.base.Optional;
-import com.uber.hoodie.common.model.HoodieRecord;
-import com.uber.hoodie.common.model.HoodieRecordPayload;
-import com.uber.hoodie.common.table.HoodieTableConfig;
-import com.uber.hoodie.common.table.HoodieTableMetaClient;
+import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieRecordPayload;
+import org.apache.hudi.common.table.HoodieTableConfig;
+import org.apache.hudi.common.table.HoodieTableMetaClient;
 import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
@@ -56,7 +56,7 @@ public final class HoodieUtil {
                 HoodieTableConfig.HOODIE_PROPERTIES_FILE);
         if (!fs.exists(hoodiePropertiesFile)) {
             HoodieTableMetaClient
-                    .initializePathAsHoodieDataset(hadoopConf.getHadoopConf(),
+                    .initDatasetAndGetMetaClient(hadoopConf.getHadoopConf(),
                         hoodieConf.getBasePath(), hoodieConf.getHoodieInitProperties());
         }
     }

@@ -16,8 +16,10 @@
  */
 package com.uber.marmaray.common.sinks.hoodie;
 
-import com.uber.hoodie.WriteStatus;
-import com.uber.hoodie.common.model.HoodieRecord;
+import org.apache.hudi.WriteStatus;
+import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.util.Option;
+
 import java.util.Map;
 import java.util.Optional;
 
@@ -33,11 +35,11 @@ public class HoodieWriteStatus extends WriteStatus {
     }
 
     /**
-     * Overriding {@link #markSuccess(HoodieRecord, Optional)} to avoid caching
-     * {@link com.uber.hoodie.common.model.HoodieKey} for successfully written hoodie records.
+     * Overriding {@link #markSuccess(HoodieRecord, Option)} to avoid caching
+     * {@link org.apache.hudi.common.model.HoodieKey} for successfully written hoodie records.
      */
     @Override
-    public void markSuccess(final HoodieRecord record, final Optional<Map<String, String>> optionalRecordMetadata) {
+    public void markSuccess(final HoodieRecord record, final Option<Map<String, String>> optionalRecordMetadata) {
         this.totalRecords++;
     }
 

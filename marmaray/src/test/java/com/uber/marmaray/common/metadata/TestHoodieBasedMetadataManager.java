@@ -16,7 +16,7 @@
  */
 package com.uber.marmaray.common.metadata;
 
-import com.uber.hoodie.common.table.HoodieTableMetaClient;
+import org.apache.hudi.common.table.HoodieTableMetaClient;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;

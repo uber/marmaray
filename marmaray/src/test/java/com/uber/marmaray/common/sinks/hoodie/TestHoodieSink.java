@@ -18,8 +18,9 @@ package com.uber.marmaray.common.sinks.hoodie;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
-import com.uber.hoodie.common.table.timeline.HoodieActiveTimeline;
-import com.uber.hoodie.config.HoodieWriteConfig;
+import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
+import org.apache.hudi.common.util.Option;
+import org.apache.hudi.config.HoodieWriteConfig;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.configuration.HadoopConfiguration;
@@ -196,7 +197,7 @@ public class TestHoodieSink extends AbstractSparkTest {
                 .insert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
                 .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
-                        Matchers.same(java.util.Optional.empty()));
+                        Matchers.same(Option.empty()));
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1)).close();
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(0))
                 .bulkInsert(Matchers.any(JavaRDD.class), Matchers.anyString());
@@ -244,7 +245,7 @@ public class TestHoodieSink extends AbstractSparkTest {
                 .bulkInsert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
                 .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
-                        Matchers.same(java.util.Optional.empty()));
+                        Matchers.same(Option.empty()));
     }
 
     @Test
@@ -293,7 +294,7 @@ public class TestHoodieSink extends AbstractSparkTest {
                 .insert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
                 .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
-                        Matchers.eq(java.util.Optional.of(hoodieBasedMetadataManager.getMetadataInfo())));
+                        Matchers.eq(Option.of(hoodieBasedMetadataManager.getMetadataInfo())));
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1)).close();
         Assert.assertFalse(hoodieBasedMetadataManager.shouldSaveChanges().get());
     }
@@ -344,7 +345,7 @@ public class TestHoodieSink extends AbstractSparkTest {
                 .bulkInsert(Matchers.any(JavaRDD.class), Matchers.anyString());
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
                 .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
-                        Matchers.eq(java.util.Optional.of(hoodieBasedMetadataManager.getMetadataInfo())));
+                        Matchers.eq(Option.of(hoodieBasedMetadataManager.getMetadataInfo())));
         Assert.assertFalse(hoodieBasedMetadataManager.shouldSaveChanges().get());
     }
 
@@ -393,7 +394,7 @@ public class TestHoodieSink extends AbstractSparkTest {
                 .filterExists(Matchers.any(JavaRDD.class));
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1))
                 .commit(Matchers.anyString(), Matchers.any(JavaRDD.class),
-                        Matchers.same(java.util.Optional.empty()));
+                        Matchers.same(Option.empty()));
         Mockito.verify(hoodieWriteClientWrapper, Mockito.times(1)).close();
 
         // If we try to re-insert then it should find all the records as a a part filterExists test and should not

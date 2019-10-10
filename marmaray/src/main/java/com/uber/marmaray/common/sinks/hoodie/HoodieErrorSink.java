@@ -17,10 +17,10 @@
 package com.uber.marmaray.common.sinks.hoodie;
 
 import com.google.common.base.Optional;
-import com.uber.hoodie.WriteStatus;
-import com.uber.hoodie.common.model.HoodieKey;
-import com.uber.hoodie.exception.HoodieInsertException;
-import com.uber.hoodie.exception.HoodieUpsertException;
+import org.apache.hudi.WriteStatus;
+import org.apache.hudi.common.model.HoodieKey;
+import org.apache.hudi.exception.HoodieInsertException;
+import org.apache.hudi.exception.HoodieUpsertException;
 import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.converters.data.HoodieSinkDataConverter;

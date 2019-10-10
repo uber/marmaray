@@ -17,7 +17,7 @@
 
 package com.uber.marmaray.common.sources.file;
 
-import com.uber.hoodie.avro.MercifulJsonConverter;
+import org.apache.hudi.avro.MercifulJsonConverter;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.converters.converterresult.ConverterResult;
