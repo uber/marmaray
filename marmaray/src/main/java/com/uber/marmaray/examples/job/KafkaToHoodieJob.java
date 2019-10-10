@@ -47,31 +47,12 @@ import parquet.Preconditions;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.converters.data.HoodieSinkDataConverter;
-
-
-class CustomHoodieSinkDataConverter extends HoodieSinkDataConverter {
-    CustomHoodieSinkDataConverter(Configuration conf, ErrorExtractor errorExtractor) {
-        super(conf, errorExtractor);
-    }
-
-    @Override
-    protected String getRecordKey(AvroPayload avroPayload) {
-        return "Region";
-    }
-
-    @Override
-    protected String getPartitionPath(AvroPayload avroPayload) {
-        return "test";
-    }
-}
 
 
 /**
@@ -182,8 +163,8 @@ public class KafkaToHoodieJob {
                     Optional.absent(), Optional.absent());
 
             // Sink
-            HoodieSinkDataConverter hoodieSinkDataConverter = new CustomHoodieSinkDataConverter(conf,
-                    new ErrorExtractor());
+            HoodieSinkDataConverter hoodieSinkDataConverter = new HoodieSinkDataConverter(conf, new ErrorExtractor(),
+                    hoodieConf);
             HoodieSink hoodieSink = new HoodieSink(hoodieConf, hoodieSinkDataConverter, jsc,
                     HoodieSink.HoodieSinkOp.INSERT, metadataManager, Optional.absent());
 

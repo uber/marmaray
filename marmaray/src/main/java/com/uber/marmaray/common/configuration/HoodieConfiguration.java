@@ -65,6 +65,16 @@ public class HoodieConfiguration implements Serializable {
      * Schema for Hoodie dataset
      */
     public static final String HOODIE_AVRO_SCHEMA = HOODIE_COMMON_PROPERTY_PREFIX + "schema";
+
+    /**
+     * Record Key for Hoodie dataset
+     */
+    public static final String HOODIE_RECORD_KEY = HOODIE_COMMON_PROPERTY_PREFIX + "record_key";
+
+    /**
+     * Partition path for Hoodie dataset
+     */
+    public static final String HOODIE_PARTITION_PATH = HOODIE_COMMON_PROPERTY_PREFIX + "partition_path";
     /**
      * Flag to control whether it should combine before insert
      */
@@ -248,6 +258,20 @@ public class HoodieConfiguration implements Serializable {
      */
     public String getTableName() {
         return this.getConf().getProperty(getTablePropertyKey(HOODIE_TABLE_NAME, this.tableKey)).get();
+    }
+
+    /**
+     * @return hoodie record key.
+     */
+    public Optional<String> getHoodieRecordKey() {
+        return this.conf.getProperty(getTablePropertyKey(HOODIE_RECORD_KEY, this.tableKey));
+    }
+
+    /**
+     * @return hoodie partition path.
+     */
+    public Optional<String> getHoodiePartitionPath() {
+        return this.conf.getProperty(getTablePropertyKey(HOODIE_PARTITION_PATH, this.tableKey));
     }
 
     /**
@@ -489,6 +513,16 @@ public class HoodieConfiguration implements Serializable {
 
         public Builder withBasePath(@NotEmpty final String basePath) {
             this.conf.setProperty(getTablePropertyKey(HOODIE_BASE_PATH, this.tableKey), basePath);
+            return this;
+        }
+
+        public Builder withRecordKey(@NotEmpty final String recordKey) {
+            this.conf.setProperty(getTablePropertyKey(HOODIE_RECORD_KEY, this.tableKey), recordKey);
+            return this;
+        }
+
+        public Builder withPartitionPath(@NotEmpty final String partitionPath) {
+            this.conf.setProperty(getTablePropertyKey(HOODIE_PARTITION_PATH, this.tableKey), partitionPath);
             return this;
         }
 

@@ -156,11 +156,13 @@ public class TestHoodieSink extends AbstractSparkTest {
         final String basePath = FileTestUtil.getTempFolder();
         final String tableName = "test-table";
         final String schemaStr = getSchema(TS_KEY, RECORD_KEY, 4, 8).toString();
-        final HoodieSinkDataConverter hoodieKeyGenerator =
-            new TSBasedHoodieSinkDataConverter(conf, RECORD_KEY, TS_KEY, TimeUnit.MILLISECONDS);
         final HoodieConfiguration hoodieConf =
-            HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
-                .withBasePath(basePath).withSchema(schemaStr).enableMetrics(false).build();
+                HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
+                        .withBasePath(basePath).withSchema(schemaStr).withRecordKey(RECORD_KEY)
+                        .withPartitionPath(TS_KEY).enableMetrics(false).build();
+        final HoodieSinkDataConverter hoodieKeyGenerator =
+            new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
+
         final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hoodieKeyGenerator, jsc.get(), INSERT);
         final JavaRDD<AvroPayload> inputRDD =
             this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
@@ -201,11 +203,13 @@ public class TestHoodieSink extends AbstractSparkTest {
         final String basePath = FileTestUtil.getTempFolder();
         final String tableName = "test-table";
         final String schemaStr = getSchema(TS_KEY, RECORD_KEY, 4, 8).toString();
-        final HoodieSinkDataConverter hoodieKeyGenerator =
-            new TSBasedHoodieSinkDataConverter(this.conf, RECORD_KEY, TS_KEY, TimeUnit.MILLISECONDS);
         final HoodieConfiguration hoodieConf =
-            HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
-                .withBasePath(basePath).withSchema(schemaStr).enableMetrics(false).build();
+                HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
+                        .withBasePath(basePath).withSchema(schemaStr).withRecordKey(RECORD_KEY)
+                        .withPartitionPath(TS_KEY).enableMetrics(false).build();
+        final HoodieSinkDataConverter hoodieKeyGenerator =
+                new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
+
         final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hoodieKeyGenerator, jsc.get(), UPSERT);
         final JavaRDD<AvroPayload> inputRDD =
             this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
@@ -243,11 +247,12 @@ public class TestHoodieSink extends AbstractSparkTest {
         final String basePath = FileTestUtil.getTempFolder();
         final String tableName = "test-table";
         final String schemaStr = getSchema(TS_KEY, RECORD_KEY, 4, 8).toString();
-        final HoodieSinkDataConverter hoodieKeyGenerator =
-            new TSBasedHoodieSinkDataConverter(this.conf, RECORD_KEY, TS_KEY, TimeUnit.MILLISECONDS);
         final HoodieConfiguration hoodieConf =
-            HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
-                .withBasePath(basePath).withSchema(schemaStr).enableMetrics(false).build();
+                HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
+                        .withBasePath(basePath).withSchema(schemaStr).withRecordKey(RECORD_KEY)
+                        .withPartitionPath(TS_KEY).enableMetrics(false).build();
+        final HoodieSinkDataConverter hoodieKeyGenerator =
+                new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
         final HoodieBasedMetadataManager hoodieBasedMetadataManager = new HoodieBasedMetadataManager(hoodieConf,
             new AtomicBoolean(true), this.jsc.get());
         hoodieBasedMetadataManager.set("randomKey", new StringValue("randomValue"));
@@ -291,11 +296,12 @@ public class TestHoodieSink extends AbstractSparkTest {
         final String basePath = FileTestUtil.getTempFolder();
         final String tableName = "test-table";
         final String schemaStr = getSchema(TS_KEY, RECORD_KEY, 4, 8).toString();
-        final HoodieSinkDataConverter hoodieKeyGenerator =
-            new TSBasedHoodieSinkDataConverter(this.conf, RECORD_KEY, TS_KEY, TimeUnit.MILLISECONDS);
         final HoodieConfiguration hoodieConf =
-            HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
-                .withBasePath(basePath).withSchema(schemaStr).enableMetrics(false).build();
+                HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
+                        .withBasePath(basePath).withSchema(schemaStr).withRecordKey(RECORD_KEY)
+                        .withPartitionPath(TS_KEY).enableMetrics(false).build();
+        final HoodieSinkDataConverter hoodieKeyGenerator =
+                new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
         final HoodieBasedMetadataManager hoodieBasedMetadataManager = new HoodieBasedMetadataManager(hoodieConf,
             new AtomicBoolean(true), this.jsc.get());
         hoodieBasedMetadataManager.set("randomKey", new StringValue("randomValue"));
@@ -339,12 +345,13 @@ public class TestHoodieSink extends AbstractSparkTest {
         final String basePath = FileTestUtil.getTempFolder();
         final String tableName = "test-table";
         final String schemaStr = getSchema(TS_KEY, RECORD_KEY, 4, 8).toString();
-        final HoodieSinkDataConverter hoodieKeyGenerator =
-            new TSBasedHoodieSinkDataConverter(this.conf, RECORD_KEY, TS_KEY, TimeUnit.MILLISECONDS);
         final HoodieConfiguration hoodieConf =
-            HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
-                .withBasePath(basePath).withSchema(schemaStr)
-                .withCombineBeforeInsert(true).withCombineBeforeUpsert(true).enableMetrics(false).build();
+                HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
+                        .withBasePath(basePath).withSchema(schemaStr).withCombineBeforeInsert(true)
+                        .withCombineBeforeUpsert(true).withRecordKey(RECORD_KEY).withPartitionPath(TS_KEY)
+                        .enableMetrics(false).build();
+        final HoodieSinkDataConverter hoodieKeyGenerator =
+                new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
         final JavaRDD<AvroPayload> inputRDD =
             this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
 
@@ -400,11 +407,14 @@ public class TestHoodieSink extends AbstractSparkTest {
         final String tableName = "test-table";
         final String schemaStr = getSchema(TS_KEY, RECORD_KEY, 4, 8).toString();
         final String brokenSchemaStr = getSchema(TS_KEY, RECORD_KEY, 0, 0).toString();
-        final HoodieSinkDataConverter hoodieKeyGenerator =
-                new TSBasedHoodieSinkDataConverter(conf, RECORD_KEY, TS_KEY, TimeUnit.MILLISECONDS);
+
         final HoodieConfiguration hoodieConf =
                 HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
-                        .withBasePath(basePath).withSchema(schemaStr).enableMetrics(false).build();
+                        .withBasePath(basePath).withSchema(schemaStr).withRecordKey(RECORD_KEY)
+                        .withPartitionPath(TS_KEY).enableMetrics(false).build();
+        final HoodieSinkDataConverter hoodieKeyGenerator =
+                new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
+
         final MockHoodieSink hoodieSink = new MockHoodieSink(hoodieConf, hoodieKeyGenerator, jsc.get(), INSERT);
         final Map<String, String> emptyTags = new HashMap<>();
         final DataFeedMetrics dfm = new DataFeedMetrics(JOB_NAME, emptyTags);
@@ -444,11 +454,14 @@ public class TestHoodieSink extends AbstractSparkTest {
         final String basePath = FileTestUtil.getTempFolder();
         final String tableName = "test-table";
         final String schemaStr = getSchema(TS_KEY, RECORD_KEY, 4, 8).toString();
-        final HoodieSinkDataConverter hoodieKeyGenerator =
-            new TSBasedHoodieSinkDataConverter(this.conf, RECORD_KEY, TS_KEY, TimeUnit.MILLISECONDS);
+
         final HoodieConfiguration hoodieConf =
-            HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
-                .withBasePath(basePath).withSchema(schemaStr).enableMetrics(false).build();
+                HoodieConfiguration.newBuilder(tableName).withTableName(tableName).withMetricsPrefix("test")
+                        .withBasePath(basePath).withSchema(schemaStr).withRecordKey(RECORD_KEY)
+                        .withPartitionPath(TS_KEY).enableMetrics(false).build();
+        final HoodieSinkDataConverter hoodieKeyGenerator =
+                new TSBasedHoodieSinkDataConverter(conf, hoodieConf, TimeUnit.MILLISECONDS);
+
         final JavaRDD<AvroPayload> inputRDD =
             this.jsc.get().parallelize(getRandomData(schemaStr, TS_KEY, RECORD_KEY, 10));
 
