@@ -59,7 +59,8 @@ public class HoodieSinkDataConverter extends SinkDataConverter<Schema, HoodieRec
     }
 
     public HoodieSinkDataConverter(@NonNull final Configuration conf, final String schema,
-                                   @NonNull final ErrorExtractor errorExtractor, HoodieConfiguration hoodieConfiguration) {
+                                   @NonNull final ErrorExtractor errorExtractor,
+                                   HoodieConfiguration hoodieConfiguration) {
         super(conf, errorExtractor);
         this.schema = schema;
         this.errorExtractor = errorExtractor;
