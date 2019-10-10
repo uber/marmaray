@@ -20,6 +20,7 @@ import com.uber.marmaray.common.metrics.ModuleTagNames;
 import com.uber.marmaray.common.metrics.TimerMetric;
 import com.uber.marmaray.common.reporters.ConsoleReporter;
 import com.uber.marmaray.common.reporters.Reporters;
+import com.uber.marmaray.common.schema.kafka.KafkaSchemaAvroServiceReader;
 import com.uber.marmaray.common.sinks.hoodie.HoodieSink;
 import com.uber.marmaray.common.sources.ISource;
 import com.uber.marmaray.common.sources.IWorkUnitCalculator;
@@ -36,7 +37,6 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericDatumReader;
 import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -55,52 +55,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.converters.data.HoodieSinkDataConverter;
-import com.uber.marmaray.common.exceptions.InvalidDataException;
-import com.uber.marmaray.common.schema.ISchemaService;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.io.*;
-import java.io.Serializable;
 
-
-class KafkaSchemaServiceReader implements ISchemaService.ISchemaServiceReader, Serializable {
-
-    private final String schemaString;
-    private transient Schema schema;
-
-    KafkaSchemaServiceReader(@NotEmpty final Schema schema) {
-        this.schemaString = schema.toString();
-        this.schema = schema;
-    }
-
-    private Schema getSchema() {
-        if (this.schema == null) {
-            this.schema = new Schema.Parser().parse(this.schemaString);
-        }
-        return this.schema;
-    }
-
-    @Override
-    public GenericRecord read(final byte[] buffer) throws InvalidDataException {
-        final DatumReader<GenericRecord> datumReader = new GenericDatumReader<>(getSchema());
-        BinaryDecoder decoder = DecoderFactory.get().binaryDecoder(buffer, null);
-        try {
-            return datumReader.read(null, decoder);
-        } catch (IOException e) {
-            throw new InvalidDataException("Error decoding data", e);
-        }
-
-
-        // JSON reader
-//        DatumReader<GenericRecord> reader = new GenericDatumReader<>(this.getSchema());
-//
-//        try {
-//            JsonDecoder jsonDecoder = DecoderFactory.get().jsonDecoder(this.getSchema(), new String(buffer));
-//            return reader.read(null, jsonDecoder);
-//        } catch (IOException e) {
-//            throw new InvalidDataException("Error decoding data", e);
-//        }
-    }
-}
 
 class CustomHoodieSinkDataConverter extends HoodieSinkDataConverter {
     CustomHoodieSinkDataConverter(Configuration conf, ErrorExtractor errorExtractor) {
@@ -242,7 +197,7 @@ public class KafkaToHoodieJob {
 
             // Schema
             log.info("Initializing source data converter");
-            KafkaSchemaServiceReader serviceReader = new KafkaSchemaServiceReader(outputSchema);
+            KafkaSchemaAvroServiceReader serviceReader = new KafkaSchemaAvroServiceReader(outputSchema);
             final KafkaSourceDataConverter dataConverter = new KafkaSourceDataConverter(serviceReader, conf, new ErrorExtractor());
 
             log.info("Initializing source & sink for job");
