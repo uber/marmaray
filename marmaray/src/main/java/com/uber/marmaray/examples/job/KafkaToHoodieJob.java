@@ -80,7 +80,6 @@ class CustomHoodieSinkDataConverter extends HoodieSinkDataConverter {
  */
 @Slf4j
 public class KafkaToHoodieJob {
-
     /**
      * Generic entry point
      *
