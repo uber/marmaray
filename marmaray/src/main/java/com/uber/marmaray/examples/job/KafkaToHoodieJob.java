@@ -21,6 +21,7 @@ import com.uber.marmaray.common.metrics.TimerMetric;
 import com.uber.marmaray.common.reporters.ConsoleReporter;
 import com.uber.marmaray.common.reporters.Reporters;
 import com.uber.marmaray.common.schema.kafka.KafkaSchemaAvroServiceReader;
+import com.uber.marmaray.common.schema.kafka.KafkaSchemaJSONServiceReader;
 import com.uber.marmaray.common.sinks.hoodie.HoodieSink;
 import com.uber.marmaray.common.sources.ISource;
 import com.uber.marmaray.common.sources.IWorkUnitCalculator;
@@ -197,7 +198,7 @@ public class KafkaToHoodieJob {
 
             // Schema
             log.info("Initializing source data converter");
-            KafkaSchemaAvroServiceReader serviceReader = new KafkaSchemaAvroServiceReader(outputSchema);
+            KafkaSchemaJSONServiceReader serviceReader = new KafkaSchemaJSONServiceReader(outputSchema);
             final KafkaSourceDataConverter dataConverter = new KafkaSourceDataConverter(serviceReader, conf, new ErrorExtractor());
 
             log.info("Initializing source & sink for job");
