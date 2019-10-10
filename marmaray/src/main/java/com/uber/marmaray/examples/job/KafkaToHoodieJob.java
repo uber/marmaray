@@ -84,7 +84,7 @@ public class KafkaToHoodieJob {
      * Generic entry point
      *
      * @param args arguments for the job, from the command line
-     * @throws IOException
+     * @throws IOException Exception
      */
     public static void main(final String[] args) throws IOException {
         new KafkaToHoodieJob().run(args);
@@ -94,7 +94,7 @@ public class KafkaToHoodieJob {
      * Main execution method for the job.
      *
      * @param args command line arguments
-     * @throws IOException
+     * @throws IOException Exception
      */
     private void run(final String[] args) throws IOException {
 
@@ -138,7 +138,7 @@ public class KafkaToHoodieJob {
         reporters.report(convertSchemaLatencyMs);
 
         final SparkArgs sparkArgs = new SparkArgs(
-                Arrays.asList(outputSchema),
+                Collections.singletonList(outputSchema),
                 SparkUtil.getSerializationClasses(),
                 conf);
         final SparkFactory sparkFactory = new SparkFactory(sparkArgs);
@@ -174,14 +174,18 @@ public class KafkaToHoodieJob {
             // Schema
             log.info("Initializing source data converter");
             KafkaSchemaJSONServiceReader serviceReader = new KafkaSchemaJSONServiceReader(outputSchema);
-            final KafkaSourceDataConverter dataConverter = new KafkaSourceDataConverter(serviceReader, conf, new ErrorExtractor());
+            final KafkaSourceDataConverter dataConverter = new KafkaSourceDataConverter(serviceReader, conf,
+                    new ErrorExtractor());
 
             log.info("Initializing source & sink for job");
-            final ISource kafkaSource = new KafkaSource(kafkaSourceConf, Optional.of(jsc), dataConverter, Optional.absent(), Optional.absent());
+            final ISource kafkaSource = new KafkaSource(kafkaSourceConf, Optional.of(jsc), dataConverter,
+                    Optional.absent(), Optional.absent());
 
             // Sink
-            HoodieSinkDataConverter hoodieSinkDataConverter = new CustomHoodieSinkDataConverter(conf, new ErrorExtractor());
-            HoodieSink hoodieSink = new HoodieSink(hoodieConf, hoodieSinkDataConverter, jsc, HoodieSink.HoodieSinkOp.INSERT, metadataManager, Optional.absent());
+            HoodieSinkDataConverter hoodieSinkDataConverter = new CustomHoodieSinkDataConverter(conf,
+                    new ErrorExtractor());
+            HoodieSink hoodieSink = new HoodieSink(hoodieConf, hoodieSinkDataConverter, jsc,
+                    HoodieSink.HoodieSinkOp.INSERT, metadataManager, Optional.absent());
 
             log.info("Initializing work unit calculator for job");
             final IWorkUnitCalculator workUnitCalculator = new KafkaWorkUnitCalculator(kafkaSourceConf);
@@ -280,7 +284,8 @@ public class KafkaToHoodieJob {
      * @param jsc  Java spark context
      * @return metadata manager
      */
-    private static IMetadataManager initMetadataManager(@NonNull final HoodieConfiguration conf, @NonNull final JavaSparkContext jsc) {
+    private static IMetadataManager initMetadataManager(@NonNull final HoodieConfiguration conf,
+                                                        @NonNull final JavaSparkContext jsc) {
         log.info("Create metadata manager");
         try {
             return new HoodieBasedMetadataManager(conf, new AtomicBoolean(true), jsc);
