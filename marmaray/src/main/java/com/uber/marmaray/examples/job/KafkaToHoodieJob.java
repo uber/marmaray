@@ -165,8 +165,8 @@ public class KafkaToHoodieJob {
             // Sink
             HoodieSinkDataConverter hoodieSinkDataConverter = new HoodieSinkDataConverter(conf, new ErrorExtractor(),
                     hoodieConf);
-            HoodieSink hoodieSink = new HoodieSink(hoodieConf, hoodieSinkDataConverter, jsc,
-                    HoodieSink.HoodieSinkOp.INSERT, metadataManager, Optional.absent());
+            HoodieSink hoodieSink = new HoodieSink(hoodieConf, hoodieSinkDataConverter, jsc, metadataManager,
+                    Optional.absent());
 
             log.info("Initializing work unit calculator for job");
             final IWorkUnitCalculator workUnitCalculator = new KafkaWorkUnitCalculator(kafkaSourceConf);

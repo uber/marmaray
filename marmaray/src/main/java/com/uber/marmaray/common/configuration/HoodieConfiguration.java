@@ -27,6 +27,7 @@ import com.uber.hoodie.config.HoodieStorageConfig;
 import com.uber.hoodie.config.HoodieWriteConfig;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.exceptions.MissingPropertyException;
+import com.uber.marmaray.common.sinks.hoodie.HoodieSink;
 import com.uber.marmaray.utilities.ConfigUtil;
 import com.uber.marmaray.utilities.StringTypes;
 import lombok.Getter;
@@ -75,6 +76,12 @@ public class HoodieConfiguration implements Serializable {
      * Partition path for Hoodie dataset
      */
     public static final String HOODIE_PARTITION_PATH = HOODIE_COMMON_PROPERTY_PREFIX + "partition_path";
+
+    /**
+     * Partition path for Hoodie dataset
+     */
+    public static final String HOODIE_SINK_OP = HOODIE_COMMON_PROPERTY_PREFIX + "sink_op";
+
     /**
      * Flag to control whether it should combine before insert
      */
@@ -272,6 +279,17 @@ public class HoodieConfiguration implements Serializable {
      */
     public Optional<String> getHoodiePartitionPath() {
         return this.conf.getProperty(getTablePropertyKey(HOODIE_PARTITION_PATH, this.tableKey));
+    }
+
+    /**
+     * @return hoodie sink operation
+     */
+    public HoodieSink.HoodieSinkOp getHoodieSinkOp() {
+        Optional<String> sinkOp = this.conf.getProperty(getTablePropertyKey(HOODIE_SINK_OP, this.tableKey));
+        if (sinkOp.isPresent()) {
+            return HoodieSink.HoodieSinkOp.valueOf(sinkOp.get().toUpperCase());
+        }
+        return HoodieSink.HoodieSinkOp.BULK_INSERT;
     }
 
     /**
@@ -528,6 +546,11 @@ public class HoodieConfiguration implements Serializable {
 
         public Builder withSchema(@NotEmpty final String schema) {
             this.conf.setProperty(getTablePropertyKey(HOODIE_AVRO_SCHEMA, this.tableKey), schema);
+            return this;
+        }
+
+        public Builder withSinkOp(@NotEmpty final String sinkOp) {
+            this.conf.setProperty(getTablePropertyKey(HOODIE_SINK_OP, this.tableKey), sinkOp);
             return this;
         }
 

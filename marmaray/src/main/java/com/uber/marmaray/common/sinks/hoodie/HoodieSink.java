@@ -116,23 +116,21 @@ public class HoodieSink implements ISink, scala.Serializable {
     public HoodieSink(@NonNull final HoodieConfiguration hoodieConf,
                       @NonNull final HoodieSinkDataConverter hoodieSinkDataConverter,
                       @NonNull final JavaSparkContext jsc,
-                      @NonNull final HoodieSinkOp op,
                       @NonNull final IMetadataManager metadataMgr,
                       @NonNull final Optional<String> defaultDataPartitioner) {
-      this(hoodieConf, hoodieSinkDataConverter, jsc, op, metadataMgr, false, defaultDataPartitioner);
+      this(hoodieConf, hoodieSinkDataConverter, jsc, metadataMgr, false, defaultDataPartitioner);
     }
 
     public HoodieSink(@NonNull final HoodieConfiguration hoodieConf,
                       @NonNull final HoodieSinkDataConverter hoodieSinkDataConverter,
                       @NonNull final JavaSparkContext jsc,
-                      @NonNull final HoodieSinkOp op,
                       @NonNull final IMetadataManager metadataMgr,
                       final boolean shouldSaveChangesInFuture,
                       @NonNull final Optional<String> defaultDataPartitioner) {
         this.hoodieConf = hoodieConf;
         this.hoodieSinkDataConverter = hoodieSinkDataConverter;
         this.jsc = jsc;
-        this.op = op;
+        this.op = hoodieConf.getHoodieSinkOp();
         this.metadataMgr = metadataMgr;
         this.sinkStatMgr = new SinkStatManager(this.hoodieConf.getTableName(), this.metadataMgr);
         this.sinkStatMgr.init();
