@@ -60,7 +60,6 @@ import com.uber.marmaray.common.converters.data.HoodieSinkDataConverter;
  */
 @Slf4j
 public class KafkaToHoodieJob {
-
     /**
      * Generic entry point
      *
