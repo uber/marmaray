@@ -178,7 +178,7 @@ public class KafkaToHoodieJob {
 
             jobManager.addJobDag(jobDag);
 
-            log.info("Running dispersal job");
+            log.info("Running ingestion job");
             try {
                 jobManager.run();
                 JobUtil.raiseExceptionIfStatusFailed(jobManager.getJobManagerStatus());
@@ -195,7 +195,7 @@ public class KafkaToHoodieJob {
                 reporters.report(configError);
                 throw t;
             }
-            log.info("Dispersal job has been completed");
+            log.info("Ingestion job has been completed");
 
             final TimerMetric jobLatencyMetric =
                     new TimerMetric(JobMetricNames.RUN_JOB_DAG_LATENCY_MS, metricTags, jobStartTime);
