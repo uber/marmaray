@@ -18,7 +18,7 @@
 package com.uber.marmaray.common.configuration;
 
 import com.google.common.base.Optional;
-import com.uber.hoodie.config.HoodieIndexConfig;
+import org.apache.hudi.config.HoodieIndexConfig;
 import lombok.NonNull;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;

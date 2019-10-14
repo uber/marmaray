@@ -17,10 +17,11 @@
 package com.uber.marmaray.utilities;
 
 import com.google.common.base.Optional;
-import com.uber.hoodie.common.model.HoodieRecord;
-import com.uber.hoodie.common.model.HoodieRecordPayload;
-import com.uber.hoodie.common.table.HoodieTableConfig;
-import com.uber.hoodie.common.table.HoodieTableMetaClient;
+import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieRecordPayload;
+import org.apache.hudi.common.table.HoodieTableConfig;
+import org.apache.hudi.common.table.HoodieTableMetaClient;
+import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import lombok.NonNull;
@@ -44,18 +45,18 @@ public final class HoodieUtil {
     /**
      * It initializes hoodie dataset
      * @param fs {@link FileSystem}
+     * @param hadoopConf {@link HadoopConfiguration}
      * @param hoodieConf {@link HoodieConfiguration}
      * @throws IOException
      */
-    public static void initHoodieDataset(@NonNull final FileSystem fs,
+    public static void initHoodieDataset(@NonNull final FileSystem fs, @NonNull final HadoopConfiguration hadoopConf,
                                           @NonNull final HoodieConfiguration hoodieConf) throws IOException {
         final Path hoodieMetaFolder = new Path(hoodieConf.getBasePath(), HoodieTableMetaClient.METAFOLDER_NAME);
         final Path hoodiePropertiesFile = new Path(hoodieMetaFolder.toString(),
                 HoodieTableConfig.HOODIE_PROPERTIES_FILE);
         if (!fs.exists(hoodiePropertiesFile)) {
             HoodieTableMetaClient
-                    .initializePathAsHoodieDataset(FSUtils.getFs(hoodieConf.getConf(),
-                            Optional.of(hoodieConf.getBasePath())),
+                    .initDatasetAndGetMetaClient(hadoopConf.getHadoopConf(),
                         hoodieConf.getBasePath(), hoodieConf.getHoodieInitProperties());
         }
     }

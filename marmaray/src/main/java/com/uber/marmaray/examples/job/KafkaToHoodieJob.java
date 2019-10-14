@@ -94,7 +94,9 @@ public class KafkaToHoodieJob {
 
         final KafkaSourceConfiguration kafkaSourceConf;
         final HoodieConfiguration hoodieConf;
+        final HadoopConfiguration hadoopConf;
         try {
+            hadoopConf = new HadoopConfiguration(conf);
             kafkaSourceConf = new KafkaSourceConfiguration(conf);
             hoodieConf = new HoodieConfiguration(conf, "test_hoodie");
         } catch (final Exception e) {
@@ -132,7 +134,7 @@ public class KafkaToHoodieJob {
                 new TimerMetric(DataFeedMetricNames.INIT_METADATAMANAGER_LATENCY_MS, metricTags);
         final IMetadataManager metadataManager;
         try {
-            metadataManager = initMetadataManager(hoodieConf, jsc);
+            metadataManager = initMetadataManager(hadoopConf, hoodieConf, jsc);
         } catch (final JobRuntimeException e) {
             final LongMetric configError = new LongMetric(DataFeedMetricNames.DISPERSAL_CONFIGURATION_INIT_ERRORS, 1);
             configError.addTags(metricTags);
@@ -164,7 +166,7 @@ public class KafkaToHoodieJob {
             // Sink
             HoodieSinkDataConverter hoodieSinkDataConverter = new HoodieSinkDataConverter(conf, new ErrorExtractor(),
                     hoodieConf);
-            HoodieSink hoodieSink = new HoodieSink(hoodieConf, hoodieSinkDataConverter, jsc, metadataManager,
+            HoodieSink hoodieSink = new HoodieSink(hoodieConf, hadoopConf, hoodieSinkDataConverter, jsc, metadataManager,
                     Optional.absent());
 
             log.info("Initializing work unit calculator for job");
@@ -264,11 +266,12 @@ public class KafkaToHoodieJob {
      * @param jsc  Java spark context
      * @return metadata manager
      */
-    private static IMetadataManager initMetadataManager(@NonNull final HoodieConfiguration conf,
+    private static IMetadataManager initMetadataManager(@NonNull final HadoopConfiguration hadoopConf,
+                                                        @NonNull final HoodieConfiguration conf,
                                                         @NonNull final JavaSparkContext jsc) {
         log.info("Create metadata manager");
         try {
-            return new HoodieBasedMetadataManager(conf, new AtomicBoolean(true), jsc);
+            return new HoodieBasedMetadataManager(conf, hadoopConf, new AtomicBoolean(true), jsc);
         } catch (IOException e) {
             throw new JobRuntimeException("Unable to create metadata manager", e);
         }

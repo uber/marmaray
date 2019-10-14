@@ -16,7 +16,7 @@
  */
 package com.uber.marmaray.common.metadata;
 
-import com.uber.hoodie.common.table.HoodieTableMetaClient;
+import org.apache.hudi.common.table.HoodieTableMetaClient;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;
@@ -56,8 +56,9 @@ public class TestHoodieBasedMetadataManager extends AbstractSparkTest {
             .withBasePath(basePath.toString()).withSchema(schemaStr).withMetricsPrefix("hoodieMetricsPrefix")
             .enableMetrics(false).build();
         final AtomicBoolean condition = new AtomicBoolean(true);
+        final HadoopConfiguration hadoopConf = new HadoopConfiguration(new Configuration());
         final HoodieBasedMetadataManager mgr =
-            new HoodieBasedMetadataManager(hoodieConf, condition, this.jsc.get());
+            new HoodieBasedMetadataManager(hoodieConf, hadoopConf, condition, this.jsc.get());
 
         // When no previous metadata is present then metadata map is expected to be empty.
         Assert.assertEquals(0, mgr.getAll().size());
@@ -93,7 +94,7 @@ public class TestHoodieBasedMetadataManager extends AbstractSparkTest {
         // Now let's create another
         final AtomicBoolean condition2 = new AtomicBoolean(true);
         final HoodieBasedMetadataManager mgr2 =
-            new HoodieBasedMetadataManager(hoodieConf, condition2, this.jsc.get());
+            new HoodieBasedMetadataManager(hoodieConf, hadoopConf, condition2, this.jsc.get());
         Assert.assertEquals(1, mgr2.getAll().size());
         Assert.assertFalse(mgr2.getMetadataInfo().get(HoodieBasedMetadataManager.HOODIE_METADATA_KEY).isEmpty());
         Assert.assertEquals(mgr.getMetadataInfo(), mgr2.getMetadataInfo());
@@ -110,7 +111,9 @@ public class TestHoodieBasedMetadataManager extends AbstractSparkTest {
             .withBasePath(basePath.toString()).withSchema(schemaStr).withMetricsPrefix("hoodieMetricsPrefix")
             .enableMetrics(false).build();
         final AtomicBoolean condition = new AtomicBoolean(true);
-        final HoodieBasedMetadataManager mgr = new HoodieBasedMetadataManager(hoodieConf, condition, this.jsc.get());
+        final HadoopConfiguration hadoopConf = new HadoopConfiguration(new Configuration());
+        final HoodieBasedMetadataManager mgr = new HoodieBasedMetadataManager(hoodieConf, hadoopConf, condition,
+                this.jsc.get());
 
         // set up default
         final String testKey = "partition1";
@@ -119,13 +122,15 @@ public class TestHoodieBasedMetadataManager extends AbstractSparkTest {
         mgr.saveChanges();
 
         // mgr2 loads correctly
-        final HoodieBasedMetadataManager mgr2 = new HoodieBasedMetadataManager(hoodieConf, condition, this.jsc.get());
+        final HoodieBasedMetadataManager mgr2 = new HoodieBasedMetadataManager(hoodieConf, hadoopConf, condition,
+                this.jsc.get());
         Assert.assertEquals(testValue, mgr2.get(testKey).get().getValue());
         mgr2.remove(testKey);
         Assert.assertFalse(mgr2.get(testKey).isPresent());
 
         // mgr2 hasn't saved yet, so should still get old value
-        final HoodieBasedMetadataManager mgr3 = new HoodieBasedMetadataManager(hoodieConf, condition, this.jsc.get());
+        final HoodieBasedMetadataManager mgr3 = new HoodieBasedMetadataManager(hoodieConf, hadoopConf, condition,
+                this.jsc.get());
         Assert.assertEquals(testValue, mgr3.get(testKey).get().getValue());
 
         // save remove
@@ -133,7 +138,8 @@ public class TestHoodieBasedMetadataManager extends AbstractSparkTest {
         mgr2.saveChanges();
 
         // new load shouldn't find it anymore
-        final HoodieBasedMetadataManager mgr4 = new HoodieBasedMetadataManager(hoodieConf, condition, this.jsc.get());
+        final HoodieBasedMetadataManager mgr4 = new HoodieBasedMetadataManager(hoodieConf, hadoopConf, condition,
+                this.jsc.get());
         Assert.assertFalse(mgr4.get(testKey).isPresent());
 
     }

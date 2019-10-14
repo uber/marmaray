@@ -18,9 +18,11 @@
 package com.uber.marmaray.common.configuration;
 
 import com.google.common.base.Preconditions;
-import com.uber.hoodie.config.HoodieIndexConfig;
-import com.uber.hoodie.index.HoodieIndex;
-import com.uber.hoodie.index.HoodieIndex.IndexType;
+import org.apache.hudi.config.DefaultHoodieConfig;
+import org.apache.hudi.config.HoodieHBaseIndexConfig;
+import org.apache.hudi.config.HoodieIndexConfig;
+import org.apache.hudi.index.HoodieIndex;
+import org.apache.hudi.index.HoodieIndex.IndexType;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.utilities.StringTypes;
 import lombok.Getter;
@@ -165,23 +167,26 @@ public class HoodieIndexConfiguration extends HoodieConfiguration {
             version = DEFAULT_VERSION;
         }
         final String topicName = getTableName();
+
         final HoodieIndexConfig.Builder builder = HoodieIndexConfig.newBuilder()
                 .withIndexType(getHoodieIndexType());
-
         if (HoodieIndex.IndexType.HBASE.equals(getHoodieIndexType())) {
+            final HoodieHBaseIndexConfig.Builder hoodieHBaseIndexConfigBuilder = HoodieHBaseIndexConfig.newBuilder();
             final String quorum = getHoodieIndexZookeeperQuorum();
             final Integer port = getHoodieIndexZookeeperPort();
             final String zkZnodeParent  = getZkZnodeParent();
             createHbaseIndexTableIfNotExists(topicName, quorum, port.toString(), zkZnodeParent,
                     version);
-            builder
+            hoodieHBaseIndexConfigBuilder
                     .hbaseIndexGetBatchSize(getHoodieIndexGetBatchSize())
                     .hbaseTableName(getHoodieHbaseIndexTableName())
                     .hbaseZkPort(port)
                     .hbaseZkQuorum(quorum);
+            final HoodieHBaseIndexConfig hoodieHBaseIndexConfig = hoodieHBaseIndexConfigBuilder.build();
+            builder.withHBaseIndexConfig(hoodieHBaseIndexConfig);
         }
 
-        return  builder.build();
+        return builder.build();
     }
 
     public void createHbaseIndexTableIfNotExists(@NotEmpty final String dataFeed, @NotEmpty final String zkQuorum,

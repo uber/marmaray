@@ -16,10 +16,10 @@
  */
 package com.uber.marmaray.common.converters.data;
 
-import com.uber.hoodie.common.model.HoodieAvroPayload;
-import com.uber.hoodie.common.model.HoodieKey;
-import com.uber.hoodie.common.model.HoodieRecord;
-import com.uber.hoodie.common.model.HoodieRecordPayload;
+import org.apache.hudi.common.model.HoodieAvroPayload;
+import org.apache.hudi.common.model.HoodieKey;
+import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieRecordPayload;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;
@@ -38,10 +38,11 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.base.Optional;
+import org.apache.hudi.common.util.Option;
 
 /**
  * {@link HoodieSinkDataConverter} extends {@link SinkDataConverter}
- * This class is used by {@link HoodieSink} to generate {@link com.uber.hoodie.common.model.HoodieRecord} from
+ * This class is used by {@link HoodieSink} to generate {@link org.apache.hudi.common.model.HoodieRecord} from
  * {@link com.uber.marmaray.common.AvroPayload}.
  */
 public class HoodieSinkDataConverter extends SinkDataConverter<Schema, HoodieRecord<HoodieRecordPayload>> {
@@ -122,6 +123,6 @@ public class HoodieSinkDataConverter extends SinkDataConverter<Schema, HoodieRec
     }
 
     protected HoodieRecordPayload getPayload(@NonNull final AvroPayload payload) {
-        return new HoodieAvroPayload(java.util.Optional.of(payload.getData()));
+        return new HoodieAvroPayload(Option.of(payload.getData()));
     }
 }

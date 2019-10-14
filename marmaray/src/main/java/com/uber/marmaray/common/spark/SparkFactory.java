@@ -18,8 +18,8 @@
 package com.uber.marmaray.common.spark;
 
 import com.google.common.base.Optional;
-import com.uber.hoodie.common.model.HoodieKey;
-import com.uber.hoodie.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieKey;
+import org.apache.hudi.common.model.HoodieRecord;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.CassandraSinkConfiguration;
 import com.uber.marmaray.common.configuration.Configuration;

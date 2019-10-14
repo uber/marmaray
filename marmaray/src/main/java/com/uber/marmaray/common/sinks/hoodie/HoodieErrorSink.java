@@ -17,10 +17,11 @@
 package com.uber.marmaray.common.sinks.hoodie;
 
 import com.google.common.base.Optional;
-import com.uber.hoodie.WriteStatus;
-import com.uber.hoodie.common.model.HoodieKey;
-import com.uber.hoodie.exception.HoodieInsertException;
-import com.uber.hoodie.exception.HoodieUpsertException;
+import org.apache.hudi.WriteStatus;
+import org.apache.hudi.common.model.HoodieKey;
+import org.apache.hudi.exception.HoodieInsertException;
+import org.apache.hudi.exception.HoodieUpsertException;
+import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.converters.data.HoodieSinkDataConverter;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
@@ -42,11 +43,12 @@ import java.util.Map;
 public class HoodieErrorSink extends HoodieSink {
 
     public HoodieErrorSink(@NonNull final HoodieConfiguration hoodieConf,
+                           @NonNull final HadoopConfiguration hadoopConf,
                            @NonNull final HoodieSinkDataConverter hoodieSinkDataConverter,
                            @NonNull final JavaSparkContext jsc,
                            @NonNull final IMetadataManager metadataMgr,
                            final boolean shouldSaveChangesInFuture) {
-        super(hoodieConf, hoodieSinkDataConverter, jsc, metadataMgr, shouldSaveChangesInFuture, Optional.absent());
+        super(hoodieConf, hadoopConf, hoodieSinkDataConverter, jsc, metadataMgr, shouldSaveChangesInFuture, Optional.absent());
     }
 
     public void writeRecordsAndErrors(@NonNull final HoodieWriteResult result) {

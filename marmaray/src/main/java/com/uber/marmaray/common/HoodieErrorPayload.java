@@ -16,8 +16,8 @@
  */
 package com.uber.marmaray.common;
 
-import com.uber.hoodie.common.model.HoodieRecordPayload;
-import com.uber.hoodie.common.util.HoodieAvroUtils;
+import org.apache.hudi.common.model.HoodieRecordPayload;
+import org.apache.hudi.common.util.HoodieAvroUtils;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 
 import org.apache.avro.Schema;
@@ -25,6 +25,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.IndexedRecord;
 
 import lombok.NonNull;
+import org.apache.hudi.common.util.Option;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -40,13 +41,13 @@ public class HoodieErrorPayload implements HoodieRecordPayload<HoodieErrorPayloa
     }
 
     @Override
-    public Optional<IndexedRecord> getInsertValue(final Schema schema) throws IOException {
-        final Optional<GenericRecord> record = getRecord();
+    public Option<IndexedRecord> getInsertValue(final Schema schema) throws IOException {
+        final Option<GenericRecord> record = getRecord();
         return record.map(r -> HoodieAvroUtils.rewriteRecord(r, schema));
     }
 
-    protected Optional<GenericRecord> getRecord() {
-        return Optional.of(this.record);
+    protected Option<GenericRecord> getRecord() {
+        return Option.of(this.record);
     }
 
     @Override
@@ -55,7 +56,7 @@ public class HoodieErrorPayload implements HoodieRecordPayload<HoodieErrorPayloa
     }
 
     @Override
-    public Optional<IndexedRecord> combineAndGetUpdateValue(final IndexedRecord indexedRecord, final Schema schema)
+    public Option<IndexedRecord> combineAndGetUpdateValue(final IndexedRecord indexedRecord, final Schema schema)
         throws IOException {
         throw new JobRuntimeException("Not implemented yet!!");
     }

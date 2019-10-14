@@ -20,7 +20,7 @@ import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.exceptions.InvalidDataException;
-import com.uber.hoodie.common.model.HoodieKey;
+import org.apache.hudi.common.model.HoodieKey;
 import com.uber.marmaray.utilities.HoodieSinkConverterErrorExtractor;
 import java.text.SimpleDateFormat;
 import java.util.Date;

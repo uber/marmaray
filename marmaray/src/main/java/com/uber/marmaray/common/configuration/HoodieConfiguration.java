@@ -17,14 +17,14 @@
 package com.uber.marmaray.common.configuration;
 
 import com.google.common.base.Optional;
-import com.uber.hoodie.WriteStatus;
-import com.uber.hoodie.common.model.HoodieCleaningPolicy;
-import com.uber.hoodie.common.table.HoodieTableConfig;
-import com.uber.hoodie.config.HoodieCompactionConfig;
-import com.uber.hoodie.config.HoodieIndexConfig;
-import com.uber.hoodie.config.HoodieMetricsConfig;
-import com.uber.hoodie.config.HoodieStorageConfig;
-import com.uber.hoodie.config.HoodieWriteConfig;
+import org.apache.hudi.WriteStatus;
+import org.apache.hudi.common.model.HoodieCleaningPolicy;
+import org.apache.hudi.common.table.HoodieTableConfig;
+import org.apache.hudi.config.HoodieCompactionConfig;
+import org.apache.hudi.config.HoodieIndexConfig;
+import org.apache.hudi.config.HoodieMetricsConfig;
+import org.apache.hudi.config.HoodieStorageConfig;
+import org.apache.hudi.config.HoodieWriteConfig;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.exceptions.MissingPropertyException;
 import com.uber.marmaray.common.sinks.hoodie.HoodieSink;
@@ -305,7 +305,7 @@ public class HoodieConfiguration implements Serializable {
     }
 
     /**
-     * @return true if {@link com.uber.hoodie.HoodieWriteClient} should rollback inflight commits from previous write
+     * @return true if {@link org.apache.hudi.HoodieWriteClient} should rollback inflight commits from previous write
      * call.
      */
     public boolean shouldRollbackInFlight() {
@@ -434,6 +434,7 @@ public class HoodieConfiguration implements Serializable {
                     ).build());
 
             // Hoodie index config
+
             builder.withIndexConfig(new HoodieIndexConfiguration(getConf(), getTableKey()).configureHoodieIndex());
 
             // Hoodie metrics config
@@ -462,12 +463,6 @@ public class HoodieConfiguration implements Serializable {
                 log.error(errorStr);
                 throw new JobRuntimeException(errorStr, e);
             }
-
-            // enable tmp directory writes for hoodie.
-            builder.withUseTempFolderCopyOnWriteForCreate(true);
-
-            // enabled the renaming for copy detection on merge
-            builder.withUseTempFolderCopyOnWriteForMerge(true);
 
             return builder.build();
         } catch (IllegalArgumentException e) {

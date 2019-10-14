@@ -16,9 +16,9 @@
  */
 package com.uber.marmaray.common.sinks.hoodie.partitioner;
 
-import com.uber.hoodie.common.model.HoodieRecord;
-import com.uber.hoodie.common.model.HoodieRecordPayload;
-import com.uber.hoodie.table.UserDefinedBulkInsertPartitioner;
+import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieRecordPayload;
+import org.apache.hudi.table.UserDefinedBulkInsertPartitioner;
 import lombok.NonNull;
 import org.apache.spark.api.java.JavaRDD;
 import scala.Serializable;
