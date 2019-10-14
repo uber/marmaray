@@ -16,7 +16,7 @@
  */
 package com.uber.marmaray.common.configuration;
 
-import com.uber.hoodie.common.model.HoodieAvroPayload;
+import org.apache.hudi.common.model.HoodieAvroPayload;
 import com.uber.marmaray.common.AvroPayload;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;

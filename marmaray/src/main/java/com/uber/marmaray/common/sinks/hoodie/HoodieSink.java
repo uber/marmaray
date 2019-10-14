@@ -18,15 +18,17 @@ package com.uber.marmaray.common.sinks.hoodie;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
-import com.uber.hoodie.HoodieWriteClient;
-import com.uber.hoodie.WriteStatus;
-import com.uber.hoodie.common.model.HoodieRecord;
-import com.uber.hoodie.common.model.HoodieRecordPayload;
-import com.uber.hoodie.config.HoodieWriteConfig;
-import com.uber.hoodie.exception.HoodieInsertException;
-import com.uber.hoodie.exception.HoodieUpsertException;
-import com.uber.hoodie.table.UserDefinedBulkInsertPartitioner;
+import org.apache.hudi.HoodieWriteClient;
+import org.apache.hudi.WriteStatus;
+import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieRecordPayload;
+import org.apache.hudi.common.util.Option;
+import org.apache.hudi.config.HoodieWriteConfig;
+import org.apache.hudi.exception.HoodieInsertException;
+import org.apache.hudi.exception.HoodieUpsertException;
+import org.apache.hudi.table.UserDefinedBulkInsertPartitioner;
 import com.uber.marmaray.common.AvroPayload;
+import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.converters.data.HoodieSinkDataConverter;
 import com.uber.marmaray.common.data.ErrorData;
@@ -56,7 +58,6 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.storage.StorageLevel;
 import org.apache.spark.util.LongAccumulator;
 import org.hibernate.validator.constraints.NotEmpty;
-import scala.Option;
 import scala.Tuple2;
 
 import java.io.Closeable;
@@ -77,6 +78,7 @@ public class HoodieSink implements ISink, scala.Serializable {
 
     private static final String TABLE_NAME = "table_name";
     private final HoodieConfiguration hoodieConf;
+    private final HadoopConfiguration hadoopConf;
     // It is used for generating HoodieKey from AvroPayload.
     private final HoodieSinkDataConverter hoodieSinkDataConverter;
     private final transient JavaSparkContext jsc;
@@ -114,25 +116,26 @@ public class HoodieSink implements ISink, scala.Serializable {
     private HoodieSinkOperations hoodieSinkOperations = new HoodieSinkOperations();
 
     public HoodieSink(@NonNull final HoodieConfiguration hoodieConf,
+                      @NonNull final HadoopConfiguration hadoopConf,
                       @NonNull final HoodieSinkDataConverter hoodieSinkDataConverter,
                       @NonNull final JavaSparkContext jsc,
-                      @NonNull final HoodieSinkOp op,
                       @NonNull final IMetadataManager metadataMgr,
                       @NonNull final Optional<String> defaultDataPartitioner) {
-      this(hoodieConf, hoodieSinkDataConverter, jsc, op, metadataMgr, false, defaultDataPartitioner);
+      this(hoodieConf, hadoopConf, hoodieSinkDataConverter, jsc, metadataMgr, false, defaultDataPartitioner);
     }
 
     public HoodieSink(@NonNull final HoodieConfiguration hoodieConf,
+                      @NonNull final HadoopConfiguration hadoopConf,
                       @NonNull final HoodieSinkDataConverter hoodieSinkDataConverter,
                       @NonNull final JavaSparkContext jsc,
-                      @NonNull final HoodieSinkOp op,
                       @NonNull final IMetadataManager metadataMgr,
                       final boolean shouldSaveChangesInFuture,
                       @NonNull final Optional<String> defaultDataPartitioner) {
         this.hoodieConf = hoodieConf;
+        this.hadoopConf = hadoopConf;
         this.hoodieSinkDataConverter = hoodieSinkDataConverter;
         this.jsc = jsc;
-        this.op = op;
+        this.op = hoodieConf.getHoodieSinkOp();
         this.metadataMgr = metadataMgr;
         this.sinkStatMgr = new SinkStatManager(this.hoodieConf.getTableName(), this.metadataMgr);
         this.sinkStatMgr.init();
@@ -175,7 +178,7 @@ public class HoodieSink implements ISink, scala.Serializable {
         final HoodieWriteConfig hoodieWriteConfig = this.hoodieConf.getHoodieWriteConfig();
         try (final HoodieWriteClientWrapper hoodieWriteClient = getHoodieWriteClient(hoodieWriteConfig)) {
             final String commitTime =
-                this.commitTime.isPresent() ? this.commitTime.get() : hoodieWriteClient.startCommit();
+                    this.commitTime.isPresent() ? this.commitTime.get() : hoodieWriteClient.startCommit();
 
             // Handle writes to hoodie. It can be an insert or upsert.
             final HoodieWriteResult result = handleWrite(hoodieWriteClient, hoodieRecords.getData(), commitTime, op);
@@ -191,7 +194,7 @@ public class HoodieSink implements ISink, scala.Serializable {
     protected void initDataset() {
         try {
             HoodieUtil.initHoodieDataset(FSUtils.getFs(this.hoodieConf.getConf(),
-                Optional.of(this.hoodieConf.getBasePath())), this.hoodieConf);
+                    Optional.of(this.hoodieConf.getBasePath())), this.hadoopConf, this.hoodieConf);
         } catch (IOException e) {
             log.error("Error initializing hoodie dataset.", e);
             throw new JobRuntimeException("Could not initialize hoodie dataset", e);
@@ -202,6 +205,7 @@ public class HoodieSink implements ISink, scala.Serializable {
      * If {@link HoodieConfiguration#HOODIE_AUTO_TUNE_PARALLELISM} is enabled then it will use
      * {@link HoodieConfiguration#HOODIE_TARGET_FILE_SIZE} and {@link SinkStatManager#getAvgRecordSize()} to figure
      * out what should be the optimal insert parallelism.
+     *
      * @param numRecords
      */
     public boolean updateInsertParallelism(final long numRecords) {
@@ -209,7 +213,7 @@ public class HoodieSink implements ISink, scala.Serializable {
             final int newParallelism = calculateNewBulkInsertParallelism(numRecords);
             if (0 < newParallelism) {
                 this.hoodieConf.setTableProperty(HoodieConfiguration.HOODIE_INSERT_PARALLELISM,
-                    Integer.toString(newParallelism));
+                        Integer.toString(newParallelism));
                 log.info("new hoodie insert parallelism is set to :{}", newParallelism);
                 return true;
             }
@@ -221,6 +225,7 @@ public class HoodieSink implements ISink, scala.Serializable {
      * If {@link HoodieConfiguration#HOODIE_AUTO_TUNE_PARALLELISM} is enabled then it will use
      * {@link HoodieConfiguration#HOODIE_TARGET_FILE_SIZE} and {@link SinkStatManager#getAvgRecordSize()} to figure
      * out what should be the optimal bulk insert parallelism.
+     *
      * @param numRecords
      */
     public boolean updateBulkInsertParallelism(final long numRecords) {
@@ -228,7 +233,7 @@ public class HoodieSink implements ISink, scala.Serializable {
             final int newParallelism = calculateNewBulkInsertParallelism(numRecords);
             if (0 < newParallelism) {
                 this.hoodieConf.setTableProperty(HoodieConfiguration.HOODIE_BULKINSERT_PARALLELISM,
-                    Integer.toString(newParallelism));
+                        Integer.toString(newParallelism));
                 log.info("new hoodie bulk insert parallelism is set to :{}", newParallelism);
                 return true;
             }
@@ -244,7 +249,7 @@ public class HoodieSink implements ISink, scala.Serializable {
         final int currentParallelism = this.hoodieConf.getBulkInsertParallelism();
         log.info(
                 "StatsManager:targetFileSize:{}:avgRecordSize:{}:numRecords:{}:"
-                + "newBulkInsertParallelism:{}:currentBulkInsertParallelism:{}",
+                        + "newBulkInsertParallelism:{}:currentBulkInsertParallelism:{}",
                 targetFileSize, avgRecordSize, numRecords, newParallelism, currentParallelism);
         return newParallelism;
     }
@@ -252,8 +257,8 @@ public class HoodieSink implements ISink, scala.Serializable {
     @VisibleForTesting
     protected HoodieWriteClientWrapper getHoodieWriteClient(@NonNull final HoodieWriteConfig hoodieWriteConfig) {
         final HoodieWriteClient<HoodieRecordPayload> hoodieWriteClient =
-            new HoodieWriteClient<HoodieRecordPayload>(this.jsc, hoodieWriteConfig,
-                this.hoodieConf.shouldRollbackInFlight());
+                new HoodieWriteClient<HoodieRecordPayload>(this.jsc, hoodieWriteConfig,
+                        this.hoodieConf.shouldRollbackInFlight());
         return new HoodieWriteClientWrapper(hoodieWriteClient, this.bulkInsertPartitioner);
     }
 
@@ -262,24 +267,24 @@ public class HoodieSink implements ISink, scala.Serializable {
      * {@link HoodieBasedMetadataManager#shouldSaveChanges()} flag.
      */
     public void commit(@NonNull final HoodieWriteClientWrapper hoodieWriteClient,
-                          @NotEmpty final String commitTime,
-                          @NonNull final Optional<JavaRDD<WriteStatus>> writesStatuses) {
+                       @NotEmpty final String commitTime,
+                       @NonNull final Optional<JavaRDD<WriteStatus>> writesStatuses) {
         this.commit(hoodieWriteClient, commitTime, writesStatuses, this.shouldSaveChangesInFuture);
     }
 
     public void commit(@NonNull final HoodieWriteClientWrapper hoodieWriteClient,
-                          @NotEmpty final String commitTime,
-                          @NonNull final Optional<JavaRDD<WriteStatus>> writesStatuses,
-                          final boolean shouldSaveChangesInFuture) {
+                       @NotEmpty final String commitTime,
+                       @NonNull final Optional<JavaRDD<WriteStatus>> writesStatuses,
+                       final boolean shouldSaveChangesInFuture) {
         updateSinkStat(writesStatuses);
         logWriteMetrics(writesStatuses);
 
-        java.util.Optional<HashMap<String, String>> hoodieExtraMetadata = java.util.Optional.empty();
+        Option<Map<String, String>> hoodieExtraMetadata = Option.empty();
         if (this.metadataMgr instanceof HoodieBasedMetadataManager) {
             // Retrieve metadata from metadata manager and update metadata manager to avoid it creating extra
             // hoodie commit.
             final HoodieBasedMetadataManager hoodieBasedMetadataManager = (HoodieBasedMetadataManager) this.metadataMgr;
-            hoodieExtraMetadata = java.util.Optional.of(hoodieBasedMetadataManager.getMetadataInfo());
+            hoodieExtraMetadata = Option.of(hoodieBasedMetadataManager.getMetadataInfo());
             if (!shouldSaveChangesInFuture) {
                 hoodieBasedMetadataManager.shouldSaveChanges().set(false);
             }
@@ -328,9 +333,9 @@ public class HoodieSink implements ISink, scala.Serializable {
             final LongAccumulator totalCount = writesStatuses.get().rdd().sparkContext().longAccumulator();
             final LongAccumulator errorCount = writesStatuses.get().rdd().sparkContext().longAccumulator();
             writesStatuses.get().foreach(writeStatus -> {
-                    errorCount.add(writeStatus.getFailedRecords().size());
-                    totalCount.add(writeStatus.getTotalRecords());
-                });
+                errorCount.add(writeStatus.getFailedRecords().size());
+                totalCount.add(writeStatus.getTotalRecords());
+            });
             this.dataFeedMetrics.get().createLongMetric(DataFeedMetricNames.ERROR_ROWCOUNT, errorCount.value(),
                     this.dataFeedMetricsTags);
             this.dataFeedMetrics.get().createLongMetric(DataFeedMetricNames.OUTPUT_ROWCOUNT,
@@ -341,6 +346,7 @@ public class HoodieSink implements ISink, scala.Serializable {
     /**
      * {@link #updateSinkStat(Optional)} will compute {@link SinkStat} and persist changes into {@link IMetadataManager}.
      * As a part of {@link SinkStat} computation; it will compute avg record size for current run.
+     *
      * @param writesStatuses
      */
     private void updateSinkStat(final Optional<JavaRDD<WriteStatus>> writesStatuses) {
@@ -349,16 +355,16 @@ public class HoodieSink implements ISink, scala.Serializable {
             final LongAccumulator fileCount = writesStatuses.get().rdd().sparkContext().longAccumulator();
             final LongAccumulator totalSize = writesStatuses.get().rdd().sparkContext().longAccumulator();
             writesStatuses.get().foreach(
-                writeStatus -> {
-                    final long writeBytes = writeStatus.getStat().getTotalWriteBytes();
-                    final long numInserts = writeStatus.getStat().getNumWrites()
-                            - writeStatus.getStat().getNumUpdateWrites();
-                    if (writeBytes > 0 && numInserts > 0) {
-                        avgRecordSizeCounter.add(writeBytes / numInserts);
+                    writeStatus -> {
+                        final long writeBytes = writeStatus.getStat().getTotalWriteBytes();
+                        final long numInserts = writeStatus.getStat().getNumWrites()
+                                - writeStatus.getStat().getNumUpdateWrites();
+                        if (writeBytes > 0 && numInserts > 0) {
+                            avgRecordSizeCounter.add(writeBytes / numInserts);
+                        }
+                        fileCount.add(1);
+                        totalSize.add(writeBytes);
                     }
-                    fileCount.add(1);
-                    totalSize.add(writeBytes);
-                }
             );
             final long avgRecordSize = (int) avgRecordSizeCounter.avg();
             if (avgRecordSize > 0) {
@@ -367,9 +373,9 @@ public class HoodieSink implements ISink, scala.Serializable {
             }
             if (this.dataFeedMetrics.isPresent()) {
                 this.dataFeedMetrics.get().createLongMetric(DataFeedMetricNames.TOTAL_FILE_COUNT, fileCount.value(),
-                    this.dataFeedMetricsTags);
+                        this.dataFeedMetricsTags);
                 this.dataFeedMetrics.get().createLongMetric(DataFeedMetricNames.TOTAL_WRITE_SIZE, totalSize.value(),
-                    this.dataFeedMetricsTags);
+                        this.dataFeedMetricsTags);
             }
         }
         this.sinkStatMgr.persist();
@@ -444,7 +450,7 @@ public class HoodieSink implements ISink, scala.Serializable {
     }
 
     private JavaRDD<HoodieRecord<HoodieRecordPayload>> dedupRecords(@NonNull final HoodieWriteClientWrapper writeClient,
-        @NonNull final JavaRDD<HoodieRecord<HoodieRecordPayload>> hoodieRecords) {
+                                                                    @NonNull final JavaRDD<HoodieRecord<HoodieRecordPayload>> hoodieRecords) {
         return writeClient.filterExists(hoodieRecords).persist(StorageLevel.DISK_ONLY());
     }
 
@@ -454,11 +460,11 @@ public class HoodieSink implements ISink, scala.Serializable {
      * see {@link UserDefinedBulkInsertPartitioner}.
      */
     public static UserDefinedBulkInsertPartitioner getDataPartitioner(@NonNull final HoodieConfiguration hoodieConf,
-        @NonNull final Optional<String> defaultDataPartitioner) {
+                                                                      @NonNull final Optional<String> defaultDataPartitioner) {
         try {
             return (UserDefinedBulkInsertPartitioner) Class.forName(hoodieConf.getHoodieDataPartitioner(
-                defaultDataPartitioner.isPresent() ? defaultDataPartitioner.get()
-                    : DefaultHoodieDataPartitioner.class.getName())).newInstance();
+                    defaultDataPartitioner.isPresent() ? defaultDataPartitioner.get()
+                            : DefaultHoodieDataPartitioner.class.getName())).newInstance();
         } catch (InstantiationException | IllegalAccessException | ClassNotFoundException | ClassCastException e) {
             throw new JobRuntimeException("exception in initializing data partitioner", e);
         }
@@ -485,22 +491,22 @@ public class HoodieSink implements ISink, scala.Serializable {
         }
 
         public boolean commit(@NotEmpty final String commitTime, @NonNull final JavaRDD<WriteStatus> writeStatuses,
-            final java.util.Optional<HashMap<String, String>> extraMetadata) {
+                              final Option<Map<String, String>> extraMetadata) {
             return this.hoodieWriteClient.commit(commitTime, writeStatuses, extraMetadata);
         }
 
         public JavaRDD<WriteStatus> insert(@NonNull final JavaRDD<HoodieRecord<HoodieRecordPayload>> records,
-            @NotEmpty final String commitTime) {
+                                           @NotEmpty final String commitTime) {
             return this.hoodieWriteClient.insert(records, commitTime);
         }
 
         public JavaRDD<WriteStatus> bulkInsert(@NonNull final JavaRDD<HoodieRecord<HoodieRecordPayload>> records,
-            @NotEmpty final String commitTime) {
-            return this.hoodieWriteClient.bulkInsert(records, commitTime, Option.apply(this.bulkInsertPartitioner));
+                                               @NotEmpty final String commitTime) {
+            return this.hoodieWriteClient.bulkInsert(records, commitTime, Option.of(this.bulkInsertPartitioner));
         }
 
         public JavaRDD<WriteStatus> upsert(@NonNull final JavaRDD<HoodieRecord<HoodieRecordPayload>> records,
-            @NotEmpty final String commitTime) {
+                                           @NotEmpty final String commitTime) {
             return this.hoodieWriteClient.upsert(records, commitTime);
         }
 
@@ -522,7 +528,7 @@ public class HoodieSink implements ISink, scala.Serializable {
         }
 
         public JavaRDD<HoodieRecord<HoodieRecordPayload>> filterExists(
-            final JavaRDD<HoodieRecord<HoodieRecordPayload>> hoodieRecords) {
+                final JavaRDD<HoodieRecord<HoodieRecordPayload>> hoodieRecords) {
             return this.hoodieWriteClient.filterExists(hoodieRecords);
         }
     }
@@ -531,17 +537,29 @@ public class HoodieSink implements ISink, scala.Serializable {
      * Supported hoodie write operations.
      */
     public enum HoodieSinkOp {
-        /** {@link HoodieWriteClient#insert(JavaRDD, String)}*/
+        /**
+         * {@link HoodieWriteClient#insert(JavaRDD, String)}
+         */
         INSERT,
-        /** {@link HoodieWriteClient#bulkInsert(JavaRDD, String)}*/
+        /**
+         * {@link HoodieWriteClient#bulkInsert(JavaRDD, String)}
+         */
         BULK_INSERT,
-        /** {@link HoodieWriteClient#insert(JavaRDD, String)} {@link HoodieWriteClient#filterExists(JavaRDD)}*/
+        /**
+         * {@link HoodieWriteClient#insert(JavaRDD, String)} {@link HoodieWriteClient#filterExists(JavaRDD)}
+         */
         DEDUP_INSERT,
-        /** {@link HoodieWriteClient#bulkInsert(JavaRDD, String)} {@link HoodieWriteClient#filterExists(JavaRDD)}*/
+        /**
+         * {@link HoodieWriteClient#bulkInsert(JavaRDD, String)} {@link HoodieWriteClient#filterExists(JavaRDD)}
+         */
         DEDUP_BULK_INSERT,
-        /** {@link com.uber.hoodie.HoodieWriteClient#upsert(org.apache.spark.api.java.JavaRDD, java.lang.String)}*/
+        /**
+         * {@link org.apache.hudi.HoodieWriteClient#upsert(org.apache.spark.api.java.JavaRDD, java.lang.String)}
+         */
         UPSERT,
-        /** No operation */
+        /**
+         * No operation
+         */
         NO_OP
     }
 

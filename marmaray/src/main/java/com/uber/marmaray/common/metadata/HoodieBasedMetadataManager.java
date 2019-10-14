@@ -17,13 +17,13 @@
 package com.uber.marmaray.common.metadata;
 
 import com.google.common.base.Optional;
-import com.uber.hoodie.HoodieWriteClient;
-import com.uber.hoodie.WriteStatus;
-import com.uber.hoodie.common.model.HoodieAvroPayload;
-import com.uber.hoodie.common.model.HoodieCommitMetadata;
-import com.uber.hoodie.common.table.HoodieTableMetaClient;
-import com.uber.hoodie.common.table.timeline.HoodieActiveTimeline;
-import com.uber.hoodie.common.table.timeline.HoodieInstant;
+import org.apache.hudi.HoodieWriteClient;
+import org.apache.hudi.WriteStatus;
+import org.apache.hudi.common.model.HoodieAvroPayload;
+import org.apache.hudi.common.model.HoodieCommitMetadata;
+import org.apache.hudi.common.table.HoodieTableMetaClient;
+import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
+import org.apache.hudi.common.table.timeline.HoodieInstant;
 import com.uber.marmaray.common.configuration.HadoopConfiguration;
 import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
@@ -36,6 +36,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hudi.common.util.Option;
 import org.apache.parquet.Strings;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -61,6 +62,7 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
 
     @Getter
     private final HoodieConfiguration hoodieConf;
+    private final HadoopConfiguration hadoopConf;
     private final AtomicBoolean saveChanges;
     private transient Optional<JavaSparkContext> jsc = Optional.absent();
     private Optional<Map<String, String>> metadataMap = Optional.absent();
@@ -72,8 +74,11 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
      * @param hoodieConf        {@link HoodieConfiguration}
      */
     public HoodieBasedMetadataManager(@NonNull final HoodieConfiguration hoodieConf,
-        @NonNull final AtomicBoolean shouldSaveChanges, @NonNull final JavaSparkContext jsc) throws IOException {
+                                      @NonNull final HadoopConfiguration hadoopConf,
+                                      @NonNull final AtomicBoolean shouldSaveChanges,
+                                      @NonNull final JavaSparkContext jsc) throws IOException {
         this.hoodieConf = hoodieConf;
+        this.hadoopConf = hadoopConf;
         this.saveChanges = shouldSaveChanges;
         this.jsc = Optional.of(jsc);
     }
@@ -90,7 +95,7 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
 
     private Map<String, String> getMetadataMap() {
         if (!this.metadataMap.isPresent()) {
-            this.metadataMap = Optional.of(readMetadataInfo(this.hoodieConf));
+            this.metadataMap = Optional.of(readMetadataInfo(this.hoodieConf, this.hadoopConf));
         }
         return this.metadataMap.get();
     }
@@ -161,7 +166,7 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
         final List<WriteStatus> dummyWrites = new ArrayList<>();
         final boolean ret =
             writeClient
-            .commit(commitTime, jsc.get().parallelize(dummyWrites), java.util.Optional.of(getMetadataInfo()));
+            .commit(commitTime, jsc.get().parallelize(dummyWrites), Option.of(getMetadataInfo()));
         if (!ret) {
             throw new JobRuntimeException("Failed to save metadata information.");
         }
@@ -171,7 +176,7 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
      * This method will also be used by HoodieSink to retrieve and store metadata information.
      * It returns {@link HashMap<String, String>} with hoodie metadata information to be saved into commit file.
      * It returns {@link HashMap} instead of {@link Map} because hoodie needs it that way. Checkout
-     * {@link HoodieWriteClient#commit(String, JavaRDD, java.util.Optional)} for more info.
+     * {@link HoodieWriteClient#commit(String, JavaRDD, Option)} for more info.
      */
     public HashMap<String, String> getMetadataInfo() {
         final HashMap<String, String> map = new HashMap<>();
@@ -184,20 +189,21 @@ public class HoodieBasedMetadataManager implements IMetadataManager<StringValue>
      * {@link #HOODIE_METADATA_KEY} key.
      */
     private static Map<String, String> readMetadataInfo(
-            @NonNull final HoodieConfiguration hoodieConf) {
+            @NonNull final HoodieConfiguration hoodieConf, @NonNull final HadoopConfiguration hadoopConf) {
         try {
             final FileSystem fs = FSUtils.getFs(hoodieConf.getConf(), Optional.of(hoodieConf.getBasePath()));
-            HoodieUtil.initHoodieDataset(fs, hoodieConf);
+            HoodieUtil.initHoodieDataset(fs, hadoopConf, hoodieConf);
             final HoodieTableMetaClient hoodieTableMetaClient =
                 new HoodieTableMetaClient(new HadoopConfiguration(hoodieConf.getConf()).getHadoopConf(),
                     hoodieConf.getBasePath(), true);
             final HoodieActiveTimeline hoodieActiveTimeline = hoodieTableMetaClient.getActiveTimeline();
-            final java.util.Optional<HoodieInstant> lastInstant = hoodieActiveTimeline.getCommitTimeline()
+            final Option<HoodieInstant> lastInstant = hoodieActiveTimeline.getCommitTimeline()
                 .filterCompletedInstants().lastInstant();
             if (lastInstant.isPresent()) {
                 log.info("using hoodie instant for reading checkpoint info :{}", lastInstant.get().getTimestamp());
                 final HoodieCommitMetadata commitMetadata =
-                    HoodieCommitMetadata.fromBytes(hoodieActiveTimeline.getInstantDetails(lastInstant.get()).get());
+                    HoodieCommitMetadata.fromBytes(hoodieActiveTimeline.getInstantDetails(lastInstant.get()).get(),
+                            HoodieCommitMetadata.class);
                 final String serCommitInfo = commitMetadata.getMetadata(HOODIE_METADATA_KEY);
                 if (!Strings.isNullOrEmpty(serCommitInfo)) {
                     return MapUtil.deserializeMap(serCommitInfo);

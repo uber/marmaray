@@ -19,6 +19,7 @@ package com.uber.marmaray.common.converters.data;
 
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
+import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.utilities.ErrorExtractor;
 
 import lombok.NonNull;
@@ -29,7 +30,9 @@ import lombok.NonNull;
  */
 public class DummyHoodieSinkDataConverter extends HoodieSinkDataConverter {
     public DummyHoodieSinkDataConverter() {
-        super(new Configuration(), new ErrorExtractor());
+
+        super(new Configuration(), new ErrorExtractor(), HoodieConfiguration.newBuilder(new Configuration(),
+                "test").build());
     }
 
     @Override

@@ -17,16 +17,17 @@
 package com.uber.marmaray.common.configuration;
 
 import com.google.common.base.Optional;
-import com.uber.hoodie.WriteStatus;
-import com.uber.hoodie.common.model.HoodieCleaningPolicy;
-import com.uber.hoodie.common.table.HoodieTableConfig;
-import com.uber.hoodie.config.HoodieCompactionConfig;
-import com.uber.hoodie.config.HoodieIndexConfig;
-import com.uber.hoodie.config.HoodieMetricsConfig;
-import com.uber.hoodie.config.HoodieStorageConfig;
-import com.uber.hoodie.config.HoodieWriteConfig;
+import org.apache.hudi.WriteStatus;
+import org.apache.hudi.common.model.HoodieCleaningPolicy;
+import org.apache.hudi.common.table.HoodieTableConfig;
+import org.apache.hudi.config.HoodieCompactionConfig;
+import org.apache.hudi.config.HoodieIndexConfig;
+import org.apache.hudi.config.HoodieMetricsConfig;
+import org.apache.hudi.config.HoodieStorageConfig;
+import org.apache.hudi.config.HoodieWriteConfig;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import com.uber.marmaray.common.exceptions.MissingPropertyException;
+import com.uber.marmaray.common.sinks.hoodie.HoodieSink;
 import com.uber.marmaray.utilities.ConfigUtil;
 import com.uber.marmaray.utilities.StringTypes;
 import lombok.Getter;
@@ -65,6 +66,22 @@ public class HoodieConfiguration implements Serializable {
      * Schema for Hoodie dataset
      */
     public static final String HOODIE_AVRO_SCHEMA = HOODIE_COMMON_PROPERTY_PREFIX + "schema";
+
+    /**
+     * Record Key for Hoodie dataset
+     */
+    public static final String HOODIE_RECORD_KEY = HOODIE_COMMON_PROPERTY_PREFIX + "record_key";
+
+    /**
+     * Partition path for Hoodie dataset
+     */
+    public static final String HOODIE_PARTITION_PATH = HOODIE_COMMON_PROPERTY_PREFIX + "partition_path";
+
+    /**
+     * Partition path for Hoodie dataset
+     */
+    public static final String HOODIE_SINK_OP = HOODIE_COMMON_PROPERTY_PREFIX + "sink_op";
+
     /**
      * Flag to control whether it should combine before insert
      */
@@ -251,6 +268,31 @@ public class HoodieConfiguration implements Serializable {
     }
 
     /**
+     * @return hoodie record key.
+     */
+    public Optional<String> getHoodieRecordKey() {
+        return this.conf.getProperty(getTablePropertyKey(HOODIE_RECORD_KEY, this.tableKey));
+    }
+
+    /**
+     * @return hoodie partition path.
+     */
+    public Optional<String> getHoodiePartitionPath() {
+        return this.conf.getProperty(getTablePropertyKey(HOODIE_PARTITION_PATH, this.tableKey));
+    }
+
+    /**
+     * @return hoodie sink operation
+     */
+    public HoodieSink.HoodieSinkOp getHoodieSinkOp() {
+        Optional<String> sinkOp = this.conf.getProperty(getTablePropertyKey(HOODIE_SINK_OP, this.tableKey));
+        if (sinkOp.isPresent()) {
+            return HoodieSink.HoodieSinkOp.valueOf(sinkOp.get().toUpperCase());
+        }
+        return HoodieSink.HoodieSinkOp.BULK_INSERT;
+    }
+
+    /**
      * @return hoodie metrics prefix.
      * */
     public String getHoodieMetricsPrefix() {
@@ -263,7 +305,7 @@ public class HoodieConfiguration implements Serializable {
     }
 
     /**
-     * @return true if {@link com.uber.hoodie.HoodieWriteClient} should rollback inflight commits from previous write
+     * @return true if {@link org.apache.hudi.HoodieWriteClient} should rollback inflight commits from previous write
      * call.
      */
     public boolean shouldRollbackInFlight() {
@@ -392,6 +434,7 @@ public class HoodieConfiguration implements Serializable {
                     ).build());
 
             // Hoodie index config
+
             builder.withIndexConfig(new HoodieIndexConfiguration(getConf(), getTableKey()).configureHoodieIndex());
 
             // Hoodie metrics config
@@ -420,12 +463,6 @@ public class HoodieConfiguration implements Serializable {
                 log.error(errorStr);
                 throw new JobRuntimeException(errorStr, e);
             }
-
-            // enable tmp directory writes for hoodie.
-            builder.withUseTempFolderCopyOnWriteForCreate(true);
-
-            // enabled the renaming for copy detection on merge
-            builder.withUseTempFolderCopyOnWriteForMerge(true);
 
             return builder.build();
         } catch (IllegalArgumentException e) {
@@ -492,8 +529,23 @@ public class HoodieConfiguration implements Serializable {
             return this;
         }
 
+        public Builder withRecordKey(@NotEmpty final String recordKey) {
+            this.conf.setProperty(getTablePropertyKey(HOODIE_RECORD_KEY, this.tableKey), recordKey);
+            return this;
+        }
+
+        public Builder withPartitionPath(@NotEmpty final String partitionPath) {
+            this.conf.setProperty(getTablePropertyKey(HOODIE_PARTITION_PATH, this.tableKey), partitionPath);
+            return this;
+        }
+
         public Builder withSchema(@NotEmpty final String schema) {
             this.conf.setProperty(getTablePropertyKey(HOODIE_AVRO_SCHEMA, this.tableKey), schema);
+            return this;
+        }
+
+        public Builder withSinkOp(@NotEmpty final String sinkOp) {
+            this.conf.setProperty(getTablePropertyKey(HOODIE_SINK_OP, this.tableKey), sinkOp);
             return this;
         }
 

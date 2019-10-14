@@ -18,10 +18,10 @@ package com.uber.marmaray.utilities;
 
 import com.google.common.base.Optional;
 import com.google.common.collect.Sets;
-import com.uber.hoodie.WriteStatus;
-import com.uber.hoodie.common.HoodieRollbackStat;
-import com.uber.hoodie.common.model.HoodieRecordLocation;
-import com.uber.hoodie.common.model.HoodieWriteStat;
+import org.apache.hudi.WriteStatus;
+import org.apache.hudi.common.HoodieRollbackStat;
+import org.apache.hudi.common.model.HoodieRecordLocation;
+import org.apache.hudi.common.model.HoodieWriteStat;
 import com.uber.marmaray.common.HoodieErrorPayload;
 import com.uber.marmaray.common.exceptions.JobRuntimeException;
 import lombok.NonNull;

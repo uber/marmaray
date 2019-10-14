@@ -16,13 +16,15 @@
  */
 package com.uber.marmaray.common.converters.data;
 
-import com.uber.hoodie.common.model.HoodieAvroPayload;
-import com.uber.hoodie.common.model.HoodieKey;
-import com.uber.hoodie.common.model.HoodieRecord;
-import com.uber.hoodie.common.model.HoodieRecordPayload;
+import org.apache.hudi.common.model.HoodieAvroPayload;
+import org.apache.hudi.common.model.HoodieKey;
+import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieRecordPayload;
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
+import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.converters.converterresult.ConverterResult;
+import com.uber.marmaray.common.exceptions.InvalidDataException;
 import com.uber.marmaray.common.metrics.DataFeedMetrics;
 import com.uber.marmaray.common.metrics.JobMetrics;
 import com.uber.marmaray.common.sinks.hoodie.HoodieSink;
@@ -35,27 +37,35 @@ import org.apache.avro.generic.GenericRecord;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.base.Optional;
+import org.apache.hudi.common.util.Option;
+
 /**
  * {@link HoodieSinkDataConverter} extends {@link SinkDataConverter}
- * This class is used by {@link HoodieSink} to generate {@link com.uber.hoodie.common.model.HoodieRecord} from
+ * This class is used by {@link HoodieSink} to generate {@link org.apache.hudi.common.model.HoodieRecord} from
  * {@link com.uber.marmaray.common.AvroPayload}.
  */
-public abstract class HoodieSinkDataConverter extends SinkDataConverter<Schema, HoodieRecord<HoodieRecordPayload>> {
+public class HoodieSinkDataConverter extends SinkDataConverter<Schema, HoodieRecord<HoodieRecordPayload>> {
 
     // store the schema as a string since Schema doesn't serialize. Used in extended classes.
     protected String schema;
     private final ErrorExtractor errorExtractor;
+    private final HoodieConfiguration hoodieConfiguration;
 
-    public HoodieSinkDataConverter(@NonNull final Configuration conf, @NonNull final ErrorExtractor errorExtractor) {
+    public HoodieSinkDataConverter(@NonNull final Configuration conf, @NonNull final ErrorExtractor errorExtractor,
+                                   @NonNull final HoodieConfiguration hoodieConfiguration) {
         super(conf, errorExtractor);
         this.errorExtractor = errorExtractor;
+        this.hoodieConfiguration = hoodieConfiguration;
     }
 
     public HoodieSinkDataConverter(@NonNull final Configuration conf, final String schema,
-                                   @NonNull final ErrorExtractor errorExtractor) {
+                                   @NonNull final ErrorExtractor errorExtractor,
+                                   HoodieConfiguration hoodieConfiguration) {
         super(conf, errorExtractor);
         this.schema = schema;
         this.errorExtractor = errorExtractor;
+        this.hoodieConfiguration = hoodieConfiguration;
     }
 
     @Override
@@ -82,7 +92,17 @@ public abstract class HoodieSinkDataConverter extends SinkDataConverter<Schema, 
      *
      * @param payload {@link AvroPayload}.
      */
-    protected abstract String getRecordKey(@NonNull final AvroPayload payload) throws Exception;
+    protected String getRecordKey(@NonNull final AvroPayload payload) throws Exception {
+        Optional<String> hoodieRecordKey = hoodieConfiguration.getHoodieRecordKey();
+        if (hoodieRecordKey.isPresent()) {
+            final Object recordKeyFieldVal = payload.getData().get(hoodieRecordKey.get());
+            if (recordKeyFieldVal == null) {
+                throw new InvalidDataException("required field is missing:" + hoodieRecordKey.get());
+            }
+            return recordKeyFieldVal.toString();
+        }
+        throw new Exception("Hoodie Record Key missing");
+    }
 
     /**
      * The implementation of it should use fields from {@link AvroPayload} to generate partition path which is needed
@@ -90,9 +110,19 @@ public abstract class HoodieSinkDataConverter extends SinkDataConverter<Schema, 
      *
      * @param payload {@link AvroPayload}.
      */
-    protected abstract String getPartitionPath(@NonNull final AvroPayload payload) throws Exception;
+    protected String getPartitionPath(@NonNull final AvroPayload payload) throws Exception {
+        Optional<String> hoodiePartitionPath = hoodieConfiguration.getHoodiePartitionPath();
+        if (hoodiePartitionPath.isPresent()) {
+            final Object partitionFieldVal = payload.getData().get(hoodiePartitionPath.get());
+            if (partitionFieldVal == null) {
+                throw new InvalidDataException("required field is missing:" + hoodiePartitionPath.get());
+            }
+            return partitionFieldVal.toString();
+        }
+        throw new Exception("Hoodie Partition Path missing");
+    }
 
     protected HoodieRecordPayload getPayload(@NonNull final AvroPayload payload) {
-        return new HoodieAvroPayload(java.util.Optional.of(payload.getData()));
+        return new HoodieAvroPayload(Option.of(payload.getData()));
     }
 }
