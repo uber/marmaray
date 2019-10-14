@@ -20,7 +20,7 @@ import com.uber.marmaray.common.metrics.ModuleTagNames;
 import com.uber.marmaray.common.metrics.TimerMetric;
 import com.uber.marmaray.common.reporters.ConsoleReporter;
 import com.uber.marmaray.common.reporters.Reporters;
-import com.uber.marmaray.common.schema.kafka.KafkaSchemaAvroServiceReader;
+import com.uber.marmaray.common.schema.kafka.KafkaSchemaJSONServiceReader;
 import com.uber.marmaray.common.sinks.hoodie.HoodieSink;
 import com.uber.marmaray.common.sources.ISource;
 import com.uber.marmaray.common.sources.IWorkUnitCalculator;
@@ -47,32 +47,12 @@ import parquet.Preconditions;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
 import com.uber.marmaray.common.converters.data.HoodieSinkDataConverter;
-
-
-class CustomHoodieSinkDataConverter extends HoodieSinkDataConverter {
-    CustomHoodieSinkDataConverter(Configuration conf, ErrorExtractor errorExtractor) {
-        super(conf, errorExtractor);
-    }
-
-    @Override
-    protected String getRecordKey(AvroPayload avroPayload) {
-        return "Region";
-    }
-
-    @Override
-    protected String getPartitionPath(AvroPayload avroPayload) {
-        return "test";
-    }
-}
-
 
 
 /**
@@ -84,7 +64,7 @@ public class KafkaToHoodieJob {
      * Generic entry point
      *
      * @param args arguments for the job, from the command line
-     * @throws IOException
+     * @throws IOException Exception
      */
     public static void main(final String[] args) throws IOException {
         new KafkaToHoodieJob().run(args);
@@ -94,23 +74,9 @@ public class KafkaToHoodieJob {
      * Main execution method for the job.
      *
      * @param args command line arguments
-     * @throws IOException
+     * @throws IOException Exception
      */
     private void run(final String[] args) throws IOException {
-//        final String schema = "{\"namespace\": \"example.avro\", \"type\": \"record\", \"name\": \"Record\", \"fields\": [{\"name\": \"Region\", \"type\": \"string\"}, {\"name\": \"Country\", \"type\": \"string\"}] }";
-//        final Schema schemaObj = new org.apache.avro.Schema.Parser().parse(schema);
-//        final GenericData.Record record = new GenericData.Record(schemaObj);
-//        record.put("Region", "Sub-Saharan Africa");
-//        record.put("Country", "Chad");
-//
-//        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-//        final GenericDatumWriter datumWriter = new GenericDatumWriter<GenericRecord>(schemaObj);
-//        final BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(outputStream, null);
-//
-//        datumWriter.write(record, encoder);
-//        encoder.flush();
-//
-//        final String recordString = new String(outputStream.toByteArray());
 
         final Instant jobStartTime = Instant.now();
 
@@ -120,7 +86,7 @@ public class KafkaToHoodieJob {
         reporters.addReporter(new ConsoleReporter());
 
         final Map<String, String> metricTags = Collections.emptyMap();
-        final DataFeedMetrics dataFeedMetrics = new DataFeedMetrics("kafka to hoodie ingestion", metricTags);
+        final DataFeedMetrics dataFeedMetrics = new DataFeedMetrics("KafkaToHoodieJob", metricTags);
 
         log.info("Initializing configurations for job");
         final TimerMetric confInitMetric = new TimerMetric(DataFeedMetricNames.INIT_CONFIG_LATENCY_MS,
@@ -147,21 +113,12 @@ public class KafkaToHoodieJob {
         final TimerMetric convertSchemaLatencyMs =
                 new TimerMetric(DataFeedMetricNames.CONVERT_SCHEMA_LATENCY_MS, metricTags);
 
-//        final StructType inputSchema = DataTypes.createStructType(new StructField[]{
-//                DataTypes.createStructField("Region", DataTypes.StringType, true),
-//                DataTypes.createStructField("Country", DataTypes.StringType, true)
-//        });
-//
-//        final DataFrameSchemaConverter schemaConverter = new DataFrameSchemaConverter();
-//        final Schema outputSchema = schemaConverter.convertToCommonSchema(inputSchema);
-
-        final String schema = "{\"namespace\": \"example.avro\", \"type\": \"record\", \"name\": \"Record\", \"fields\": [{\"name\": \"Region\", \"type\": \"string\"}, {\"name\": \"Country\", \"type\": \"string\"}] }";
-        final Schema outputSchema = new org.apache.avro.Schema.Parser().parse(schema);
+        final Schema outputSchema = new Schema.Parser().parse(hoodieConf.getHoodieWriteConfig().getSchema());
         convertSchemaLatencyMs.stop();
         reporters.report(convertSchemaLatencyMs);
 
         final SparkArgs sparkArgs = new SparkArgs(
-                Arrays.asList(outputSchema),
+                Collections.singletonList(outputSchema),
                 SparkUtil.getSerializationClasses(),
                 conf);
         final SparkFactory sparkFactory = new SparkFactory(sparkArgs);
@@ -196,15 +153,19 @@ public class KafkaToHoodieJob {
 
             // Schema
             log.info("Initializing source data converter");
-            KafkaSchemaAvroServiceReader serviceReader = new KafkaSchemaAvroServiceReader(outputSchema);
-            final KafkaSourceDataConverter dataConverter = new KafkaSourceDataConverter(serviceReader, conf, new ErrorExtractor());
+            KafkaSchemaJSONServiceReader serviceReader = new KafkaSchemaJSONServiceReader(outputSchema);
+            final KafkaSourceDataConverter dataConverter = new KafkaSourceDataConverter(serviceReader, conf,
+                    new ErrorExtractor());
 
             log.info("Initializing source & sink for job");
-            final ISource kafkaSource = new KafkaSource(kafkaSourceConf, Optional.of(jsc), dataConverter, Optional.absent(), Optional.absent());
+            final ISource kafkaSource = new KafkaSource(kafkaSourceConf, Optional.of(jsc), dataConverter,
+                    Optional.absent(), Optional.absent());
 
             // Sink
-            HoodieSinkDataConverter hoodieSinkDataConverter = new CustomHoodieSinkDataConverter(conf, new ErrorExtractor());
-            HoodieSink hoodieSink = new HoodieSink(hoodieConf, hoodieSinkDataConverter, jsc, HoodieSink.HoodieSinkOp.INSERT, metadataManager, Optional.absent());
+            HoodieSinkDataConverter hoodieSinkDataConverter = new HoodieSinkDataConverter(conf, new ErrorExtractor(),
+                    hoodieConf);
+            HoodieSink hoodieSink = new HoodieSink(hoodieConf, hoodieSinkDataConverter, jsc, metadataManager,
+                    Optional.absent());
 
             log.info("Initializing work unit calculator for job");
             final IWorkUnitCalculator workUnitCalculator = new KafkaWorkUnitCalculator(kafkaSourceConf);
@@ -216,7 +177,7 @@ public class KafkaToHoodieJob {
 
             jobManager.addJobDag(jobDag);
 
-            log.info("Running dispersal job");
+            log.info("Running ingestion job");
             try {
                 jobManager.run();
                 JobUtil.raiseExceptionIfStatusFailed(jobManager.getJobManagerStatus());
@@ -233,7 +194,7 @@ public class KafkaToHoodieJob {
                 reporters.report(configError);
                 throw t;
             }
-            log.info("Dispersal job has been completed");
+            log.info("Ingestion job has been completed");
 
             final TimerMetric jobLatencyMetric =
                     new TimerMetric(JobMetricNames.RUN_JOB_DAG_LATENCY_MS, metricTags, jobStartTime);
@@ -303,7 +264,8 @@ public class KafkaToHoodieJob {
      * @param jsc  Java spark context
      * @return metadata manager
      */
-    private static IMetadataManager initMetadataManager(@NonNull final HoodieConfiguration conf, @NonNull final JavaSparkContext jsc) {
+    private static IMetadataManager initMetadataManager(@NonNull final HoodieConfiguration conf,
+                                                        @NonNull final JavaSparkContext jsc) {
         log.info("Create metadata manager");
         try {
             return new HoodieBasedMetadataManager(conf, new AtomicBoolean(true), jsc);
