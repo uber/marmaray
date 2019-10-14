@@ -68,7 +68,7 @@ import static com.uber.marmaray.utilities.KafkaUtil.getTopicPartitions;
 @Slf4j
 @RequiredArgsConstructor
 public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange, KafkaRunState,
-    KafkaWorkUnitCalculatorResult, StringValue> {
+        KafkaWorkUnitCalculatorResult, StringValue> {
 
     public static final String KAFKA_METADATA_PREFIX = "kafka_metadata";
     public static final String KAFKA_METADATA_WITH_SEPARATOR = KAFKA_METADATA_PREFIX + StringTypes.COLON;
@@ -116,27 +116,28 @@ public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange,
         final String topicSpecificName = getTopicSpecificMetadataKey(topicName);
         final List<String> toDelete = new LinkedList<>();
         metadataManager.getAllKeys().forEach(key -> {
-                if (key.startsWith(topicSpecificName)) {
-                    // this is my specific topic
-                    metadata.put(Integer.parseInt(key.substring(topicSpecificName.length())),
+            if (key.startsWith(topicSpecificName)) {
+                // this is my specific topic
+                metadata.put(Integer.parseInt(key.substring(topicSpecificName.length())),
                         Long.parseLong(metadataManager.get(key).get().getValue()));
-                } else if (key.startsWith(KAFKA_METADATA_WITH_SEPARATOR)) {
-                    // this is a specific topic, but not mine. ignore.
-                    assert true;
-                } else if (key.startsWith(KAFKA_METADATA_PREFIX)) {
-                    // this is unspecified topic
-                    metadata.put(Integer.parseInt(key.substring(KAFKA_METADATA_PREFIX.length())),
+            } else if (key.startsWith(KAFKA_METADATA_WITH_SEPARATOR)) {
+                // this is a specific topic, but not mine. ignore.
+                assert true;
+            } else if (key.startsWith(KAFKA_METADATA_PREFIX)) {
+                // this is unspecified topic
+                metadata.put(Integer.parseInt(key.substring(KAFKA_METADATA_PREFIX.length())),
                         Long.parseLong(metadataManager.get(key).get().getValue()));
-                    // delete the old, unspecified metadata
-                    toDelete.add(key);
-                }
-            });
+                // delete the old, unspecified metadata
+                toDelete.add(key);
+            }
+        });
         toDelete.forEach(metadataManager::remove);
         this.previousRunState = Optional.of(new KafkaRunState(metadata));
     }
 
     /**
      * Get the specific metadata name for kafka that we'll be using
+     *
      * @param topicName the name of the topic to get the metadata for
      * @return the processed name
      */
@@ -150,9 +151,9 @@ public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange,
         final String topicName = this.conf.getTopicName();
         final String topicSpecificName = getTopicSpecificMetadataKey(topicName);
         nextRunState.getPartitionOffsets().entrySet().forEach(
-            entry -> {
-                metadataManager.set(topicSpecificName + entry.getKey(), new StringValue(entry.getValue().toString()));
-            });
+                entry -> {
+                    metadataManager.set(topicSpecificName + entry.getKey(), new StringValue(entry.getValue().toString()));
+                });
     }
 
     @Override
@@ -174,15 +175,15 @@ public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange,
 
         // Read checkpointed topic partition offsets and update it with newly added partitions.
         final Map<Integer, Long> oldPartitionOffsets = readExistingPartitionOffsets();
-        if (oldPartitionOffsets.isEmpty()) {
-            // If it's a first run then initialize new partitions with latest partition offsets.
-            return new KafkaWorkUnitCalculatorResult(Collections.emptyList(),
-                new KafkaRunState(this.offsetSelector.getPartitionOffsets(
-                        this.conf,
-                        latestLeaderOffsets.keySet(),
-                        earliestLeaderOffsets,
-                        latestLeaderOffsets)));
-        }
+//        if (oldPartitionOffsets.isEmpty()) {
+//            // If it's a first run then initialize new partitions with latest partition offsets.
+//            return new KafkaWorkUnitCalculatorResult(Collections.emptyList(),
+//                new KafkaRunState(this.offsetSelector.getPartitionOffsets(
+//                        this.conf,
+//                        latestLeaderOffsets.keySet(),
+//                        earliestLeaderOffsets,
+//                        latestLeaderOffsets)));
+//        }
         final Map<Integer, Long> newPartitionOffsets =
                 updatePartitionStartOffsets(oldPartitionOffsets, earliestLeaderOffsets, latestLeaderOffsets);
 
@@ -190,12 +191,12 @@ public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange,
         long totalNewMessages = 0;
         final List<PartitionMessages> partitionMessages = new ArrayList<>(latestLeaderOffsets.size());
         for (Entry<TopicPartition, Long> entry : latestLeaderOffsets.entrySet()) {
-            if (!newPartitionOffsets.containsKey(entry.getKey().partition())) {
-                log.error("Unable to find offsets for topic {} partition {}",
-                    entry.getKey().topic(), entry.getKey().partition());
-                continue;
-            }
-            final long messages = entry.getValue() - newPartitionOffsets.get(entry.getKey().partition());
+//            if (!newPartitionOffsets.containsKey(entry.getKey().partition())) {
+//                log.error("Unable to find offsets for topic {} partition {}",
+//                    entry.getKey().topic(), entry.getKey().partition());
+//                continue;
+//            }
+            final long messages = entry.getValue();
             log.debug("topicPartition:{}:messages:{}:latestOffset:{}", entry.getKey(), messages, entry.getValue());
             if (messages == 0) {
                 continue;
@@ -209,12 +210,12 @@ public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange,
             return new KafkaWorkUnitCalculatorResult(Collections.emptyList(), new KafkaRunState(newPartitionOffsets));
         }
         final List<OffsetRange> workUnits =
-            calculatePartitionOffsetRangesToRead(partitionMessages, newPartitionOffsets,
-                totalNewMessages);
+                calculatePartitionOffsetRangesToRead(partitionMessages, newPartitionOffsets,
+                        totalNewMessages);
         // compute run state for the next run.
         final KafkaRunState nextRunState = createNextRunState(workUnits);
         final KafkaWorkUnitCalculatorResult kafkaWorkUnitCalculatorResult =
-            new KafkaWorkUnitCalculatorResult(workUnits, nextRunState);
+                new KafkaWorkUnitCalculatorResult(workUnits, nextRunState);
 
         computeRunMetrics(latestLeaderOffsets, nextRunState, workUnits);
         log.info("workunits: {}", kafkaWorkUnitCalculatorResult);
@@ -222,14 +223,14 @@ public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange,
     }
 
     private List<OffsetRange> calculatePartitionOffsetRangesToRead(
-        @NonNull final List<PartitionMessages> partitionMessages,
-        @NonNull final Map<Integer, Long> partitionStartOffsets, final long numMessages) {
+            @NonNull final List<PartitionMessages> partitionMessages,
+            @NonNull final Map<Integer, Long> partitionStartOffsets, final long numMessages) {
         // This will make sure that we can read more messages from partition with more than average messages per
         // partition at the same time we will read all the messages from partition with less than avg messags.
         Collections.sort(partitionMessages);
         final long maxMessagesToRead = this.conf.getMaxMessagesToRead();
         log.info("topicName:{}:newMessages:{}:maxMessagesToRead:{}", this.conf.getTopicName(), numMessages,
-            maxMessagesToRead);
+                maxMessagesToRead);
         final boolean hasExtraMessages = numMessages > maxMessagesToRead;
         final long numMessagesToRead = Math.min(numMessages, maxMessagesToRead);
 
@@ -247,8 +248,8 @@ public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange,
             }
             if (numMsgsToBeSelected > 0) {
                 offsetRanges.add(OffsetRange.create(m.getTopicPartition(),
-                    partitionStartOffsets.get(m.getTopicPartition().partition()),
-                    partitionStartOffsets.get(m.getTopicPartition().partition()) + numMsgsToBeSelected));
+                        partitionStartOffsets.get(m.getTopicPartition().partition()),
+                        partitionStartOffsets.get(m.getTopicPartition().partition()) + numMsgsToBeSelected));
             }
         }
         return offsetRanges;
@@ -267,21 +268,21 @@ public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange,
     private KafkaRunState createNextRunState(@NonNull final List<OffsetRange> workUnits) {
         final Map<Integer, Long> partitionOffsets = new HashMap<>();
         workUnits.forEach(
-            offsetRange -> {
-                final int partition = offsetRange.partition();
-                if (partitionOffsets.containsKey(partition)) {
-                    partitionOffsets
-                        .put(partition, Math.max(partitionOffsets.get(partition), offsetRange.untilOffset()));
-                } else {
-                    partitionOffsets.put(partition, offsetRange.untilOffset());
+                offsetRange -> {
+                    final int partition = offsetRange.partition();
+                    if (partitionOffsets.containsKey(partition)) {
+                        partitionOffsets
+                                .put(partition, Math.max(partitionOffsets.get(partition), offsetRange.untilOffset()));
+                    } else {
+                        partitionOffsets.put(partition, offsetRange.untilOffset());
+                    }
                 }
-            }
         );
         return new KafkaRunState(partitionOffsets);
     }
 
-    private Map<Integer, Long> buildResetPartitionOffsetMap(@NonNull final Map<TopicPartition, Long>  earliestTPOffsets,
-                                                            @NonNull final Map<TopicPartition, Long>  latestTPOffsets) {
+    private Map<Integer, Long> buildResetPartitionOffsetMap(@NonNull final Map<TopicPartition, Long> earliestTPOffsets,
+                                                            @NonNull final Map<TopicPartition, Long> latestTPOffsets) {
 
         Preconditions.checkState(kafkaOffsetResetter.isPresent(), "KafkaOffsetResetter should be present "
                 + "when this method is called");
@@ -324,7 +325,7 @@ public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange,
                                                                   final long lossStartOffset,
                                                                   final long lossEndOffset) {
         final String errMsg = String.format("DATA_LOSS:MISSED_KAFKA_MESSAGES:topic:%s:partition:%d:"
-                        + "startOffset:%d:endOffset:%d",  topicPartition.topic(),
+                        + "startOffset:%d:endOffset:%d", topicPartition.topic(),
                 topicPartition.partition(), lossStartOffset, lossEndOffset);
         log.error(errMsg);
         if (kafkaOffsetResetter.isPresent()) {
@@ -342,24 +343,23 @@ public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange,
     private Map<Integer, Long> updatePartitionStartOffsets(@NonNull final Map<Integer, Long> partitionOffsetMap,
                                                            @NonNull final Map<TopicPartition, Long> earliestTPOffsets,
                                                            @NonNull final Map<TopicPartition, Long> latestTPOffsets) {
-        if (!partitionOffsetMap.isEmpty()) {
-            for (Entry<TopicPartition, Long> entry : earliestTPOffsets.entrySet()) {
-                final TopicPartition topicPartition = entry.getKey();
-                if (!partitionOffsetMap.containsKey(topicPartition.partition())) {
-                    // New partition is found.
-                    log.info("Found new partition for topic:{}:partition:{}", topicPartition.topic(),
-                            topicPartition.partition());
-                    partitionOffsetMap.put(topicPartition.partition(), entry.getValue());
-                } else if (entry.getValue() > partitionOffsetMap.get(topicPartition.partition())) {
-                    // data loss detected
-                    return handleDataLossAndMaybeResetOffsets(earliestTPOffsets, latestTPOffsets,
-                            topicPartition, partitionOffsetMap,
-                            partitionOffsetMap.get(topicPartition.partition()), entry.getValue());
-                }
+        for (Entry<TopicPartition, Long> entry : earliestTPOffsets.entrySet()) {
+            final TopicPartition topicPartition = entry.getKey();
+            if (!partitionOffsetMap.containsKey(topicPartition.partition())) {
+                // New partition is found.
+                log.info("Found new partition for topic:{}:partition:{}", topicPartition.topic(),
+                        topicPartition.partition());
+                partitionOffsetMap.put(topicPartition.partition(), entry.getValue());
+            } else if (entry.getValue() > partitionOffsetMap.get(topicPartition.partition())) {
+                // data loss detected
+                return handleDataLossAndMaybeResetOffsets(earliestTPOffsets, latestTPOffsets,
+                        topicPartition, partitionOffsetMap,
+                        partitionOffsetMap.get(topicPartition.partition()), entry.getValue());
             }
         }
         return partitionOffsetMap;
     }
+
     /*
         Creates metrics for the current execution based on the source.
      */
@@ -376,22 +376,22 @@ public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange,
         totalTags.put(PARTITION_TAG, TOTAL_PARTITION);
         final MessageCounters counter = new MessageCounters();
         offsetRanges.forEach(offsetRange -> {
-                final Long oldCount = offsetMap.getOrDefault(offsetRange.topicPartition(), 0L);
-                offsetMap.put(offsetRange.topicPartition(), oldCount + offsetRange.count());
-            });
+            final Long oldCount = offsetMap.getOrDefault(offsetRange.topicPartition(), 0L);
+            offsetMap.put(offsetRange.topicPartition(), oldCount + offsetRange.count());
+        });
         latestLeaderOffsets.forEach(
-            (topicPartition, leaderOffset) ->
-                computePartitionMetrics(
-                    topicPartition, leaderOffset, nextRunState,
-                    topicMetrics, offsetMap.getOrDefault(topicPartition, 0L), counter)
+                (topicPartition, leaderOffset) ->
+                        computePartitionMetrics(
+                                topicPartition, leaderOffset, nextRunState,
+                                topicMetrics, offsetMap.getOrDefault(topicPartition, 0L), counter)
         );
 
         topicMetrics.createLongMetric(DataFeedMetricNames.ROWCOUNT_BEHIND,
-            counter.getTotalAvailable() - counter.getTotalCurrent(), totalTags);
+                counter.getTotalAvailable() - counter.getTotalCurrent(), totalTags);
         topicMetrics.createLongMetric(DataFeedMetricNames.INPUT_ROWCOUNT, counter.getTotalInput(), totalTags);
         if (this.chargebackCalculator.isPresent()) {
             this.chargebackCalculator.get().addCost(
-                this.topicMetrics.get().getBaseTags().get(DataFeedMetrics.DATA_FEED_NAME),
+                    this.topicMetrics.get().getBaseTags().get(DataFeedMetrics.DATA_FEED_NAME),
                     ChargebackMetricType.ROW_COUNT, counter.getTotalInput());
         }
     }
@@ -426,7 +426,7 @@ public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange,
      * It holds current set of work units and also {@link KafkaRunState} for the next run.
      */
     public final class KafkaWorkUnitCalculatorResult implements
-        IWorkUnitCalculator.IWorkUnitCalculatorResult<OffsetRange, KafkaRunState> {
+            IWorkUnitCalculator.IWorkUnitCalculatorResult<OffsetRange, KafkaRunState> {
 
         @Getter
         private final KafkaRunState nextRunState;
@@ -455,9 +455,9 @@ public class KafkaWorkUnitCalculator implements IWorkUnitCalculator<OffsetRange,
             final StringBuilder sb = new StringBuilder();
             sb.append("offsetRanges=");
             this.workUnits.forEach(
-                workUnit -> sb.append(
-                    workUnit.partition()).append(":").append(workUnit.fromOffset()).append("->")
-                    .append(workUnit.untilOffset()).append(";"));
+                    workUnit -> sb.append(
+                            workUnit.partition()).append(":").append(workUnit.fromOffset()).append("->")
+                            .append(workUnit.untilOffset()).append(";"));
             return sb.toString();
         }
 

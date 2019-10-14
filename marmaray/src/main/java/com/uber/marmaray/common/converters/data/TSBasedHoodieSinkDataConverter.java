@@ -18,6 +18,7 @@ package com.uber.marmaray.common.converters.data;
 
 import com.uber.marmaray.common.AvroPayload;
 import com.uber.marmaray.common.configuration.Configuration;
+import com.uber.marmaray.common.configuration.HoodieConfiguration;
 import com.uber.marmaray.common.exceptions.InvalidDataException;
 import com.uber.hoodie.common.model.HoodieKey;
 import com.uber.marmaray.utilities.HoodieSinkConverterErrorExtractor;
@@ -33,47 +34,29 @@ import static com.uber.marmaray.utilities.DateUtil.DATE_PARTITION_FORMAT;
 /**
  * {@link TSBasedHoodieSinkDataConverter} extends {@link HoodieSinkDataConverter}
  *
- * This class generates {@link HoodieKey} from given {@link AvroPayload}. The passed in {@link AvroPayload} requires
- * {@link #partitionFieldName} with timestamp in {@link #timeUnit}.
+ * This class generates partition path from given {@link AvroPayload}. The passed in {@link AvroPayload} requires
+ * {@link HoodieConfiguration} with timestamp in {@link #timeUnit}.
  *
- * {@link AvroPayload} also requires a {@link #recordKeyFieldName} which should be the primary key for the record.
  */
 @Slf4j
 public class TSBasedHoodieSinkDataConverter extends HoodieSinkDataConverter {
 
     public static final SimpleDateFormat PARTITION_FORMATTER = new SimpleDateFormat(DATE_PARTITION_FORMAT);
-    @NotEmpty
-    private final String recordKeyFieldName;
-    @NotEmpty
-    private final String partitionFieldName;
+
     @NonNull
     private final TimeUnit timeUnit;
 
     public TSBasedHoodieSinkDataConverter(@NonNull final Configuration conf,
-        @NotEmpty final String recordKeyFieldName, @NotEmpty final String partitionFieldName,
-        @NonNull final TimeUnit timeUnit) {
-        super(conf, new HoodieSinkConverterErrorExtractor());
-        this.recordKeyFieldName = recordKeyFieldName;
-        this.partitionFieldName = partitionFieldName;
+                                          @NonNull final HoodieConfiguration hoodieConfiguration,
+                                          @NonNull final TimeUnit timeUnit) {
+        super(conf, new HoodieSinkConverterErrorExtractor(), hoodieConfiguration);
         this.timeUnit = timeUnit;
     }
 
     @Override
-    protected String getRecordKey(@NonNull final AvroPayload payload) throws Exception {
-        final Object recordKeyFieldVal = payload.getField(recordKeyFieldName);
-        if (recordKeyFieldVal == null) {
-            throw new InvalidDataException("required field is missing:" + recordKeyFieldName);
-        }
-        return recordKeyFieldVal.toString();
-    }
-
-    @Override
     protected String getPartitionPath(final AvroPayload payload) throws Exception {
-        final Object partitionFieldVal = payload.getField(partitionFieldName);
-        if (partitionFieldVal == null) {
-            throw new InvalidDataException("required field is missing:" + partitionFieldName);
-        }
-        final Date date = new Date(this.timeUnit.toMillis((long) Double.parseDouble(partitionFieldVal.toString())));
+        String partitionFieldVal = super.getPartitionPath(payload);
+        final Date date = new Date(this.timeUnit.toMillis((long) Double.parseDouble(partitionFieldVal)));
         return PARTITION_FORMATTER.format(date);
     }
 }

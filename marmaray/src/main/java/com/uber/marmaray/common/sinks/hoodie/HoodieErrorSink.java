@@ -44,10 +44,9 @@ public class HoodieErrorSink extends HoodieSink {
     public HoodieErrorSink(@NonNull final HoodieConfiguration hoodieConf,
                            @NonNull final HoodieSinkDataConverter hoodieSinkDataConverter,
                            @NonNull final JavaSparkContext jsc,
-                           @NonNull final HoodieSinkOp op,
                            @NonNull final IMetadataManager metadataMgr,
                            final boolean shouldSaveChangesInFuture) {
-        super(hoodieConf, hoodieSinkDataConverter, jsc, op, metadataMgr, shouldSaveChangesInFuture, Optional.absent());
+        super(hoodieConf, hoodieSinkDataConverter, jsc, metadataMgr, shouldSaveChangesInFuture, Optional.absent());
     }
 
     public void writeRecordsAndErrors(@NonNull final HoodieWriteResult result) {
