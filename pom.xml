@@ -24,7 +24,7 @@
         <lombok.version>1.16.16</lombok.version>
         <google.guava.version>19.0</google.guava.version>
         <scala.libversion>2.11</scala.libversion>
-        <junit.version>4.12</junit.version>
+        <junit.version>4.13.1</junit.version>
         <maven.checkstyle.version>2.16</maven.checkstyle.version>
         <com.puppycrawl.tools.version>6.9</com.puppycrawl.tools.version>
         <cassandra.version>3.0.10</cassandra.version>
