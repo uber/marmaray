@@ -27,7 +27,7 @@
         <junit.version>4.12</junit.version>
         <maven.checkstyle.version>2.16</maven.checkstyle.version>
         <com.puppycrawl.tools.version>6.9</com.puppycrawl.tools.version>
-        <cassandra.version>3.0.10</cassandra.version>
+        <cassandra.version>3.0.26</cassandra.version>
         <spark.version>2.1.0</spark.version>
         <!-- we have an external dependency on "com.holdenkarau" for running spark tests for which
              we are not creating private release.-->
