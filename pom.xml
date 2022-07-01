@@ -49,7 +49,7 @@
         <apache.commons.cli.version>1.2</apache.commons.cli.version>
         <apache.log4j.iostreams.version>2.8.2</apache.log4j.iostreams.version>
         <guava.retry.version>2.0.0</guava.retry.version>
-        <kafka.version>0.10.2.1</kafka.version>
+        <kafka.version>0.10.2.2</kafka.version>
         <jacoco.version>0.7.9</jacoco.version>
         <gradle-maven-plugin.version>1.0.5</gradle-maven-plugin.version>
         <gradle.version>2.3</gradle.version>
